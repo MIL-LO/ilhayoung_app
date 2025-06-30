@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-enum WorkerNavTab { jobs, applications, work, mypage }
+enum WorkerNavTab { jobs, applications, home, work, mypage }
 
 class JejuWorkerNavBar extends StatefulWidget {
   final WorkerNavTab selectedTab;
@@ -53,23 +53,31 @@ class _JejuWorkerNavBarState extends State<JejuWorkerNavBar> {
             children: [
               _buildNavItem(
                 tab: WorkerNavTab.jobs,
-                icon: Icons.home_outlined,
-                activeIcon: Icons.home,
-                label: '홈',
+                icon: Icons.work_outline,
+                activeIcon: Icons.work,
+                label: '공고',
                 badge: null,
               ),
               _buildNavItem(
                 tab: WorkerNavTab.applications,
-                icon: Icons.location_on_outlined,
-                activeIcon: Icons.location_on,
-                label: '알바지도',
+                icon: Icons.description_outlined,
+                activeIcon: Icons.description,
+                label: '지원 내역',
                 badge: widget.applicationCount > 0 ? true : null,
               ),
               _buildNavItem(
+                tab: WorkerNavTab.home,
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home,
+                label: '홈',
+                badge: null,
+                isHome: true,
+              ),
+              _buildNavItem(
                 tab: WorkerNavTab.work,
-                icon: Icons.chat_bubble_outline,
-                activeIcon: Icons.chat_bubble,
-                label: '채팅',
+                icon: Icons.schedule_outlined,
+                activeIcon: Icons.schedule,
+                label: '근무',
                 badge: widget.hasActiveWork ? true : null,
               ),
               _buildNavItem(
@@ -92,6 +100,7 @@ class _JejuWorkerNavBarState extends State<JejuWorkerNavBar> {
     required IconData activeIcon,
     required String label,
     bool? badge,
+    bool isHome = false,
   }) {
     final isSelected = widget.selectedTab == tab;
     final selectedColor = const Color(0xFF00A3A3); // 제주 바다색
@@ -113,7 +122,7 @@ class _JejuWorkerNavBarState extends State<JejuWorkerNavBar> {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 아이콘
+                  // 아이콘 (모든 탭 동일)
                   Icon(
                     isSelected ? activeIcon : icon,
                     size: 24,
