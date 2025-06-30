@@ -7,7 +7,10 @@ import '../../../components/work/work_calendar.dart';
 import '../../../components/work/work_schedule_card.dart';
 import '../../../components/work/work_filter_toggle.dart';
 import '../../../models/work_schedule.dart';
+import '../../../models/evaluation_models.dart';
 import '../../../services/mock_schedule_service.dart';
+import '../../evaluation/workplace_evaluation_screen.dart';
+import '../../evaluation/orum_index_screen.dart'; // 오름지수 화면 import 추가
 
 class JejuStaffMainScreen extends StatefulWidget {
   final Function? onLogout;
@@ -31,6 +34,9 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
   List<WorkSchedule> _allSchedules = [];
   List<WorkSchedule> _filteredSchedules = [];
   List<WorkSchedule> _selectedDateSchedules = [];
+
+  // 평가 완료된 근무 기록 (실제로는 DB에서 관리)
+  Set<String> _evaluatedSchedules = {};
 
   @override
   void initState() {
@@ -96,6 +102,11 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         subtitle: '내 스케줄을 확인하세요',
         emoji: '🗓️',
         actions: [
+          IconButton(
+            icon: const Icon(Icons.star, color: Color(0xFFFFD700), size: 20),
+            onPressed: _showOrumIndex,
+            tooltip: '오름지수',
+          ),
           IconButton(
             icon: const Icon(Icons.today, color: Color(0xFF00A3A3), size: 20),
             onPressed: _goToToday,
@@ -277,6 +288,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           final schedule = _selectedDateSchedules[index];
+          final isEvaluated = _evaluatedSchedules.contains(schedule.id.toString());
+
           return Padding(
             padding: EdgeInsets.only(
               left: 16,
@@ -286,6 +299,11 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             child: WorkScheduleCard(
               schedule: schedule,
               onTap: () => _showScheduleDetail(schedule),
+              onEvaluate: (schedule.status == 'completed' &&
+                          schedule.isMyWork &&
+                          !isEvaluated)
+                  ? () => _showWorkplaceEvaluation(schedule)
+                  : null,
             ),
           );
         },
@@ -328,16 +346,51 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     });
   }
 
+  void _showOrumIndex() {
+    // 오름지수 화면으로 이동 (라우팅 대신 직접 이동)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OrumIndexScreen(onLogout: widget.onLogout),
+      ),
+    );
+  }
+
+  void _showWorkplaceEvaluation(WorkSchedule schedule) async {
+    final result = await Navigator.push<WorkplaceEvaluation>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WorkplaceEvaluationScreen(
+          workScheduleId: schedule.id.toString(),
+          company: schedule.company,
+          position: schedule.position,
+          workDate: schedule.date,
+        ),
+      ),
+    );
+
+    if (result != null) {
+      // 평가 완료 처리
+      setState(() {
+        _evaluatedSchedules.add(schedule.id.toString());
+      });
+
+      // 성공 메시지 (이미 평가 화면에서 표시되므로 생략 가능)
+    }
+  }
+
   void _showScheduleDetail(WorkSchedule schedule) {
+    final isEvaluated = _evaluatedSchedules.contains(schedule.id.toString());
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => _buildScheduleDetailSheet(schedule),
+      builder: (context) => _buildScheduleDetailSheet(schedule, isEvaluated),
     );
   }
 
-  Widget _buildScheduleDetailSheet(WorkSchedule schedule) {
+  Widget _buildScheduleDetailSheet(WorkSchedule schedule, bool isEvaluated) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.6,
       decoration: const BoxDecoration(
@@ -433,17 +486,62 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                       '구분',
                       '내 근무',
                     ),
+
+                  // 평가 상태 표시
+                  if (schedule.status == 'completed' && schedule.isMyWork) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isEvaluated
+                            ? const Color(0xFF4CAF50).withOpacity(0.1)
+                            : const Color(0xFFFFD700).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isEvaluated
+                              ? const Color(0xFF4CAF50)
+                              : const Color(0xFFFFD700),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isEvaluated ? Icons.check_circle : Icons.star_border,
+                            color: isEvaluated
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFFFFD700),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isEvaluated
+                                  ? '평가가 완료되었습니다'
+                                  : '고용주 평가를 완료해주세요',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: isEvaluated
+                                    ? const Color(0xFF4CAF50)
+                                    : const Color(0xFFFFD700),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
 
           // 액션 버튼들
-          if (schedule.status == 'scheduled')
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                if (schedule.status == 'scheduled') ...[
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () {
@@ -478,9 +576,39 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                       ),
                     ),
                   ),
+                ] else if (schedule.status == 'completed' &&
+                          schedule.isMyWork &&
+                          !isEvaluated) ...[
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showWorkplaceEvaluation(schedule);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD700),
+                        foregroundColor: Colors.black87,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.star, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            '평가하기',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
-              ),
+              ],
             ),
+          ),
         ],
       ),
     );

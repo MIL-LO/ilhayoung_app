@@ -107,19 +107,43 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
     final allTags = ['주말근무', '평일근무', '4대보험', '퇴직금', '교통비'];
 
     _allJobs = List.generate(50, (index) {
+      final company = companies[index % companies.length];
+      final jobTitle = jobTitles[index % jobTitles.length];
+      final region = regions[index % regions.length];
+      final hourlyWage = salaries[index % salaries.length];
+
       return JejuJobItem(
-        id: index + 1,
-        title: '${jobTitles[index % jobTitles.length]} 모집',
-        company: companies[index % companies.length],
-        salary: '시급 ${salaries[index % salaries.length].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
-        location: regions[index % regions.length],
+        id: (index + 1).toString(),
+        title: '$jobTitle 모집',
+        company: company,
+        location: region,
+        fullAddress: '제주특별자치도 $region ${_generateAddress(index)}',
+        salary: _formatSalary(hourlyWage),
+        hourlyWage: hourlyWage,
+        workType: index % 3 == 0 ? '정규직' : (index % 3 == 1 ? '아르바이트' : '계약직'),
+        workSchedule: _generateWorkSchedule(index),
         isUrgent: index % 7 == 0,
+        isNew: index % 10 == 0,
+        category: _categories[(index % (_categories.length - 1)) + 1],
+        createdAt: DateTime.now().subtract(Duration(days: index % 30)),
+        description: '성실하고 책임감 있는 분을 모집합니다. 자세한 사항은 연락처로 문의해주세요.',
+        contactNumber: '064-${720 + (index % 50)}-${1000 + (index % 9000)}',
+        representativeName: '${['김', '이', '박', '최', '정'][index % 5]}$jobTitle',
+        email: index % 3 == 0 ? null : 'contact$index@$company.co.kr',
+        benefits: [
+          allTags[index % allTags.length],
+          allTags[(index + 1) % allTags.length],
+        ],
+        requirements: [
+          '성실하고 책임감 있는 분',
+          '고객 서비스 마인드 보유자',
+        ],
+        companyDescription: '$company은(는) 제주 지역의 대표적인 기업입니다.',
         tags: [
           allTags[index % allTags.length],
           allTags[(index + 1) % allTags.length],
           allTags[(index + 2) % allTags.length],
         ],
-        workType: index % 3 == 0 ? '정규직' : (index % 3 == 1 ? '아르바이트' : '계약직'),
         postedDate: DateTime.now().subtract(Duration(days: index % 30)),
       );
     });
@@ -128,6 +152,41 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
       _displayedJobs = _allJobs.take(20).toList();
       _currentPage = 1;
     });
+  }
+
+  String _generateAddress(int index) {
+    final addresses = [
+      '연동 1234-5 오션뷰빌딩 1층',
+      '중앙동 567-8 한라산타워 2층',
+      '노형동 890-12 제주플라자 3층',
+      '이도이동 345-67 성산빌딩 1층',
+      '삼도이동 789-10 애월센터 2층',
+      '용담이동 456-78 서귀포타워 1층',
+      '건입동 123-45 관광빌딩 4층',
+      '화북동 678-90 펜션단지 내',
+    ];
+    return addresses[index % addresses.length];
+  }
+
+  String _generateWorkSchedule(int index) {
+    final schedules = [
+      '09:00 - 18:00',
+      '10:00 - 19:00',
+      '14:00 - 22:00',
+      '06:00 - 14:00',
+      '22:00 - 06:00',
+      '08:00 - 17:00',
+      '13:00 - 21:00',
+      '07:00 - 16:00',
+    ];
+    return schedules[index % schedules.length];
+  }
+
+  String _formatSalary(int salary) {
+    return '시급 ${salary.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},'
+    )}원';
   }
 
   void _onScroll() {

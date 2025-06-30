@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../models/jeju_job_item.dart';
+import '../../models/jeju_job_item.dart';
 
 class JobCard extends StatelessWidget {
   final JejuJobItem job;
@@ -68,22 +68,44 @@ class JobCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (job.isUrgent)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFF6B35),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              '급구',
-              style: TextStyle(
-                fontSize: 8,
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
+        Row(
+          children: [
+            if (job.isNew) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00A3A3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'NEW',
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
-          ),
+              const SizedBox(width: 4),
+            ],
+            if (job.isUrgent)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6B35),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '급구',
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -134,6 +156,16 @@ class JobCard extends StatelessWidget {
         Text(
           job.workType,
           style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+        ),
+        const SizedBox(width: 8),
+        Icon(Icons.schedule, size: 12, color: Colors.grey[600]),
+        const SizedBox(width: 2),
+        Expanded(
+          child: Text(
+            job.workSchedule,
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
