@@ -1,10 +1,12 @@
+// lib/screens/auth/auth_wrapper.dart
+
 import 'package:flutter/material.dart';
 import '../../core/enums/user_type.dart';
 import '../login/jeju_login_screen.dart';
 import '../profile/worker_info_input_screen.dart';
 import '../profile/employer_info_input_screen.dart';
 import '../worker/main/worker_main_screen.dart';
-// import '../employer/main/employer_main_screen.dart'; // 자영업자 메인 화면 (추후 구현)
+import '../employer/main/employer_main_wrapper.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({Key? key}) : super(key: key);
@@ -58,38 +60,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     // 3단계: 메인 화면 (사용자 타입별로 다른 화면)
     if (_userType == UserType.worker) {
-      return const WorkerMainScreen();
+      return WorkerMainScreen(onLogout: _handleLogout);
     } else {
-      // TODO: 자영업자 메인 화면 구현 후 연결
-      return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '🏢',
-                style: TextStyle(fontSize: 64),
-              ),
-              SizedBox(height: 20),
-              Text(
-                '자영업자 화면',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                '곧 준비될 예정입니다!',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      return EmployerMainWrapper(onLogout: _handleLogout);
     }
+  }
+
+  void _handleLogout() {
+    setState(() {
+      _isAuthenticated = false;
+      _hasUserInfo = false;
+      _userType = null;
+    });
   }
 }
