@@ -176,38 +176,36 @@ class _WorkStatusBarState extends State<WorkStatusBar>
 
                 const SizedBox(height: 20),
 
-                // 출근/퇴근 버튼 (하단)
+                // 출근/퇴근 버튼 (하단) - 수정된 부분
                 AnimatedBuilder(
                   animation: _pulseAnimation,
                   builder: (context, child) {
                     return Transform.scale(
                       scale: _isWorking ? 1.0 : _pulseAnimation.value * 0.02 + 0.98,
-                      child: Container(
+                      child: SizedBox(
                         width: double.infinity,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _toggleWork,
+                        height: 60, // 고정 높이 설정
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 24),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _isWorking ? '🌅 퇴근하기' : '🌊 출근하기',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _toggleWork,
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                alignment: Alignment.center, // 중앙 정렬 명시
+                                child: Text(
+                                  _isWorking ? '🌅 퇴근하기' : '🌊 출근하기',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                ],
+                                  textAlign: TextAlign.center, // 텍스트 중앙 정렬
+                                ),
                               ),
                             ),
                           ),

@@ -124,9 +124,12 @@ class SalaryCalculationWidget extends StatelessWidget {
                   child: _buildDetailItem(
                     '시급 평균',
                     monthlyHours > 0
-                      ? '${(expectedSalary / monthlyHours).round()}원'
-                      : '0원',
-                    Icons.attach_money,
+                      ? '₩${(expectedSalary / monthlyHours).round().toString().replaceAllMapped(
+                          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                          (Match m) => '${m[1]},'
+                        )}'
+                      : '₩0',
+                    Icons.account_balance_wallet, // 원화 관련 아이콘으로 변경
                   ),
                 ),
               ],

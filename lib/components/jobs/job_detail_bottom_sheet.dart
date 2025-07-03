@@ -507,10 +507,10 @@ class JobDetailBottomSheet extends StatelessWidget {
 
         const SizedBox(height: 20),
 
-        // 지원하기 버튼
-        Container(
+        // 지원하기 버튼 - 수정된 부분
+        SizedBox(
           width: double.infinity,
-          height: 50,
+          height: 56, // 고정 높이 설정
           child: ElevatedButton(
             onPressed: _applyToJob,
             style: ElevatedButton.styleFrom(
@@ -520,13 +520,15 @@ class JobDetailBottomSheet extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              padding: const EdgeInsets.symmetric(horizontal: 24), // 좌우 패딩만 설정
             ),
             child: const Text(
               '🌊 지원하기',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 18, // 폰트 크기 조정
                 fontWeight: FontWeight.bold,
               ),
+              textAlign: TextAlign.center, // 텍스트 중앙 정렬
             ),
           ),
         ),

@@ -4,6 +4,7 @@ import '../../core/enums/user_type.dart';
 import '../../components/jeju/jeju_carousel_slider.dart';
 import '../../components/login/user_type_selector.dart';
 import '../../components/login/google_login_button.dart';
+import '../../components/login/kakao_login_button.dart';
 import '../../components/login/jeju_message_card.dart';
 
 class JejuLoginScreen extends StatefulWidget {
@@ -89,68 +90,13 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
                 ),
 
                 // 화면 크기에 따른 동적 간격
-                SizedBox(height: MediaQuery.of(context).size.height * 0.06),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.08),
 
                 // 카카오 로그인 버튼
-                Container(
-                  width: double.infinity,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFE812), // 카카오 노란색
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFFE812).withOpacity(0.3),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ElevatedButton.icon(
-                    onPressed: _isKakaoLoading ? null : _handleKakaoLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: _isKakaoLoading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3A1D1D)),
-                            ),
-                          )
-                        : Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3A1D1D),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'K',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFFFE812),
-                                ),
-                              ),
-                            ),
-                          ),
-                    label: Text(
-                      _isKakaoLoading ? '' : '카카오로 시작하기',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF3A1D1D),
-                      ),
-                    ),
-                  ),
+                KakaoLoginButton(
+                  isLoading: _isKakaoLoading,
+                  isWorker: _isWorker,
+                  onPressed: _handleKakaoLogin,
                 ),
 
                 const SizedBox(height: 12),
@@ -162,15 +108,43 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
                   onPressed: _handleGoogleLogin,
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
-                // 또는 구분선 제거하고 바로 메시지 카드
+                // 또는 구분선
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color: Colors.grey[300],
+                        thickness: 1,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        '또는',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(
+                        color: Colors.grey[300],
+                        thickness: 1,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
 
                 // 제주 감성 메시지
                 JejuMessageCard(isWorker: _isWorker),
 
                 // 하단 안전 여백
-                SizedBox(height: MediaQuery.of(context).size.height * 0.03),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.05),
               ],
             ),
           ),

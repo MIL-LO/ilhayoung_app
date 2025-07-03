@@ -182,11 +182,11 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
     return schedules[index % schedules.length];
   }
 
-  String _formatSalary(int salary) {
-    return '시급 ${salary.toString().replaceAllMapped(
+String _formatSalary(int salary) {
+    return '시급 ₩${salary.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},'
-    )}원';
+    )}';
   }
 
   void _onScroll() {

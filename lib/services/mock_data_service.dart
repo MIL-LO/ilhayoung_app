@@ -13,13 +13,8 @@ class MockDataService {
   Future<void> _loadMockData() async {
     if (_mockData != null) return;
 
-    try {
-      final String jsonString = await rootBundle.loadString('assets/data/mock_jobs.json');
-      _mockData = json.decode(jsonString);
-    } catch (e) {
-      // assets 파일이 없으면 기본 데이터 사용
-      _mockData = _getDefaultMockData();
-    }
+    // assets 파일 없이 직접 기본 데이터 사용
+    _mockData = _getDefaultMockData();
   }
 
   Map<String, dynamic> _getDefaultMockData() {
@@ -177,10 +172,10 @@ class MockDataService {
   }
 
   String _formatSalary(int salary) {
-    return '시급 ${salary.toString().replaceAllMapped(
+    return '시급 ₩${salary.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},'
-    )}원';
+    )}';
   }
 
   String _generateWorkSchedule(int index) {

@@ -29,7 +29,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
   DateTime _selectedDate = DateTime.now();
   DateTime _currentMonth = DateTime.now();
-  bool _showMyWorkOnly = false;
+  bool _showMyWorkOnly = true; // 항상 내 근무만 표시
 
   List<WorkSchedule> _allSchedules = [];
   List<WorkSchedule> _filteredSchedules = [];
@@ -118,14 +118,6 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         opacity: _fadeAnimation,
         child: CustomScrollView(
           slivers: [
-            // 필터 토글
-            SliverToBoxAdapter(
-              child: WorkFilterToggle(
-                showMyWorkOnly: _showMyWorkOnly,
-                onToggle: _onToggleFilter,
-              ),
-            ),
-
             // 캘린더
             SliverToBoxAdapter(
               child: WorkCalendar(
@@ -331,10 +323,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
   }
 
   void _onToggleFilter(bool showMyWorkOnly) {
-    setState(() {
-      _showMyWorkOnly = showMyWorkOnly;
-      _updateFilteredSchedules();
-    });
+    // 더 이상 사용하지 않음 - 항상 내 근무만 표시
   }
 
   void _goToToday() {
@@ -536,50 +525,72 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             ),
           ),
 
-          // 액션 버튼들
+          // 액션 버튼들 - 수정된 부분
           Padding(
             padding: const EdgeInsets.all(20),
-            child: Row(
+            child: Column(
               children: [
                 if (schedule.status == 'scheduled') ...[
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showCancelDialog(schedule);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.grey[400]!),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48, // 고정 높이 설정
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showCancelDialog(schedule);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey[400]!),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              '일정 취소',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      child: const Text('일정 취소'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showEditDialog(schedule);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00A3A3),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48, // 고정 높이 설정
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showEditDialog(schedule);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00A3A3),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              '일정 수정',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        '일정 수정',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
+                    ],
                   ),
                 ] else if (schedule.status == 'completed' &&
                           schedule.isMyWork &&
                           !isEvaluated) ...[
-                  Expanded(
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48, // 고정 높이 설정
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
@@ -599,7 +610,10 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                           SizedBox(width: 8),
                           Text(
                             '평가하기',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
