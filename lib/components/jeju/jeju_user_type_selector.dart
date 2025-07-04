@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../../core/theme/app_theme.dart';
-import 'jeju_theme.dart';
 
 enum UserType { worker, employer }
 

@@ -1,0 +1,22 @@
+# Flutter 관련
+.dart_tool/
+.packages
+pubspec.lock
+
+# 개발 관련
+.vscode/
+.idea/
+*.iml
+
+# 플랫폼별 빌드 (웹만 배포하므로)
+android/
+ios/
+linux/
+macos/
+windows/
+
+# 기타
+.git/
+.gitignore
+README.md
+test/

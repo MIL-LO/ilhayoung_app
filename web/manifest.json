@@ -1,11 +1,11 @@
 {
-    "name": "ilhayoung_app",
-    "short_name": "ilhayoung_app",
+    "name": "일하영 - 제주 일자리 플랫폼",
+    "short_name": "일하영",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F8FFFE",
+    "theme_color": "#00A3A3",
+    "description": "제주에서 바다처럼 넓은 기회를 찾아보세요",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
