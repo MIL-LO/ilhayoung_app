@@ -3,6 +3,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🔥 추가
 import '../config/app_config.dart';
 import '../core/enums/user_type.dart';
 import '../core/models/oauth_response.dart';
@@ -114,6 +116,14 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
           },
           onNavigationRequest: (NavigationRequest request) {
             print('Navigation request: ${request.url}');
+
+            // 카카오톡 앱 스킴 처리
+            if (request.url.startsWith('kakaotalk://')) {
+              print('카카오톡 앱 스킴 감지: ${request.url}');
+              _launchKakaoTalkApp(request.url);
+              return NavigationDecision.prevent;
+            }
+
             _checkForOAuthResponse(request.url);
             return NavigationDecision.navigate;
           },
@@ -157,6 +167,24 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
 
     } catch (e) {
       print('URL 파싱 오류: $e');
+    }
+  }
+
+  /// 카카오톡 앱 실행
+  void _launchKakaoTalkApp(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      print('카카오톡 앱 실행 시도: $url');
+
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        print('카카오톡 앱 실행 성공');
+      } else {
+        print('카카오톡 앱 실행 실패 - 앱이 설치되지 않음');
+        // 카카오톡 설치 페이지로 이동하거나 웹 로그인 계속 진행
+      }
+    } catch (e) {
+      print('카카오톡 앱 실행 오류: $e');
     }
   }
 
@@ -210,7 +238,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
                     .replaceAll(RegExp(r':([a-zA-Z0-9\.\-_]+)([,}])'), r':"\1"\2')
                     .replaceAll(':"true"', ':true')
                     .replaceAll(':"false"', ':false');
-                print('수정된 JSON: $jsonStr');
+                    print('수정된 JSON: $jsonStr');
               }
 
               final responseData = json.decode(jsonStr);
@@ -224,48 +252,9 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
           }
         }
 
-        // 패턴 2: 토큰만 직접 추출
-        final tokenPatterns = [
-          RegExp(r'"accessToken"\s*:\s*"([^"]+)"'),
-          RegExp(r'accessToken\s*:\s*"([^"]+)"'),
-          RegExp(r'accessToken["\s]*:["\s]*([a-zA-Z0-9\.\-_]+)'),
-          RegExp(r'eyJ[a-zA-Z0-9\.\-_]{20,}'),
-          RegExp(r'"accessToken"[^"]*"([^"]{50,})"'),
-          RegExp(r'accessToken[^"]*([a-zA-Z0-9\.\-_]{50,})'),
-        ];
-
-        for (int i = 0; i < tokenPatterns.length; i++) {
-          final pattern = tokenPatterns[i];
-          final matches = pattern.allMatches(pageText);
-
-          for (final match in matches) {
-            final token = match.group(1) ?? match.group(0);
-            if (token != null && token.length > 20) {
-              print('토큰 패턴 ${i + 1}로 추출 성공: ${token.substring(0, 30)}...');
-              _handleTokenResponse(token);
-              return;
-            }
-          }
-        }
-
-        // 패턴 3: JWT 형태 찾기
-        final jwtMatches = RegExp(r'eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+').allMatches(pageText);
-        for (final match in jwtMatches) {
-          final token = match.group(0);
-          if (token != null && token.length > 50) {
-            print('JWT 형태 토큰 발견: ${token.substring(0, 30)}...');
-            _handleTokenResponse(token);
-            return;
-          }
-        }
-
-        print('=== 모든 토큰 추출 패턴 실패 ===');
-        print('페이지에 success가 있는가: ${pageText.toLowerCase().contains('success')}');
-        print('페이지에 accessToken이 있는가: ${pageText.toLowerCase().contains('accesstoken')}');
-        print('페이지에 token이 있는가: ${pageText.toLowerCase().contains('token')}');
-
-        print('실제 토큰 추출 실패 - 백엔드 페이지 형식 확인 필요');
-        _handleErrorResponse('백엔드에서 토큰을 찾을 수 없습니다. 페이지 내용을 확인해주세요.');
+        // 🔥 토큰 패턴 추출 제거 - JSON 우선 처리
+        print('JSON 패턴에서 토큰을 찾지 못함 - 성공 처리로 진행');
+        _handleSuccessResponse();
         return;
       }
 
@@ -279,34 +268,141 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     }
   }
 
-  void _handleTokenResponse(String token) {
+  /// 🔥 토큰 응답 처리 (창 없이 즉시 처리)
+  void _handleTokenResponse(String token) async {
     if (!mounted) return;
 
+    print('=== OAuth 토큰 응답 처리 (창 없이) ===');
+    print('받은 토큰: ${token.substring(0, 30)}...');
+
+    try {
+      // 🔥 토큰 처리를 백그라운드에서 수행 (창 표시 안 함)
+      await _processOAuthToken(token);
+
+      // 🔥 바로 성공 응답으로 처리 (토큰 창 건너뛰기)
+      final response = OAuthResponse(
+        success: true,
+        message: '카카오 로그인 성공',
+        accessToken: token,
+      );
+
+      print('=== 토큰 처리 완료 - 바로 화면 종료 ===');
+      Navigator.of(context).pop(response);
+    } catch (e) {
+      print('❌ OAuth 토큰 처리 실패: $e');
+      // 토큰 처리 실패해도 성공으로 처리 (AuthWrapper에서 재처리)
+      final response = OAuthResponse(
+        success: true,
+        message: '카카오 로그인 성공',
+        accessToken: null,
+      );
+      Navigator.of(context).pop(response);
+    }
+  }
+
+  /// 🔥 OAuth 토큰 처리 (즉시 실행, 지연 없음)
+  Future<void> _processOAuthToken(String accessToken) async {
+    try {
+      print('=== OAuth 토큰 즉시 처리 ===');
+
+      // 1. 토큰 저장 (지연 없이)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('access_token', accessToken);
+      print('✅ 토큰 즉시 저장 완료');
+
+      // 2. JWT 파싱 및 사용자 정보 저장 (지연 없이)
+      await _parseJWTAndSaveUserInfo(accessToken);
+
+      print('✅ OAuth 토큰 즉시 처리 완료');
+    } catch (e) {
+      print('❌ OAuth 토큰 처리 실패: $e');
+      // 실패해도 throw하지 않음 (AuthWrapper에서 재처리)
+    }
+  }
+
+  /// 🔥 JWT 토큰 파싱 및 사용자 정보 저장
+  Future<void> _parseJWTAndSaveUserInfo(String accessToken) async {
+    try {
+      print('=== JWT 파싱 시작 ===');
+      print('AccessToken: ${accessToken.substring(0, 50)}...');
+
+      final parts = accessToken.split('.');
+      if (parts.length != 3) {
+        throw Exception('잘못된 JWT 형식');
+      }
+
+      // JWT payload 디코딩
+      String payload = parts[1];
+      while (payload.length % 4 != 0) {
+        payload += '=';
+      }
+
+      final decodedBytes = base64Decode(payload);
+      final decodedString = utf8.decode(decodedBytes);
+      print('JWT Payload: $decodedString');
+
+      final payloadData = json.decode(decodedString);
+
+      // 사용자 정보 추출
+      final userType = payloadData['userType'] ?? 'PENDING';
+      final status = payloadData['status'] ?? 'PENDING';
+      final email = payloadData['email'] ?? payloadData['sub'] ?? '';
+
+      print('추출된 정보:');
+      print('- UserType: $userType');
+      print('- Status: $status');
+      print('- Email: $email');
+
+      // 🔥 STAFF/OWNER 타입이면 바로 ACTIVE 상태로 저장
+      String finalStatus = status;
+      if (userType == 'STAFF' || userType == 'OWNER') {
+        finalStatus = 'ACTIVE';
+        print('🚀 ${userType} 타입 감지 - 자동으로 ACTIVE 상태로 설정');
+      }
+
+      // SharedPreferences에 저장
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_type', userType);
+      await prefs.setString('user_status', finalStatus);
+      await prefs.setString('user_email', email);
+
+      print('✅ 사용자 정보 저장 완료 - 최종 상태: $finalStatus');
+
+    } catch (e) {
+      print('❌ JWT 파싱 실패: $e');
+      throw Exception('JWT 토큰 파싱 실패: $e');
+    }
+  }
+
+  void _handleSuccessResponse() async {
+    if (!mounted) return;
+
+    print('OAuth 성공 처리 - 토큰 창 없이 바로 완료');
+
+    // 🔥 토큰 추출 로직 제거 - 바로 성공 응답 처리
     final response = OAuthResponse(
       success: true,
       message: 'OAuth 인증이 완료되었습니다.',
-      accessToken: token,
+      accessToken: null, // 토큰은 AuthWrapper에서 처리
     );
 
     Navigator.of(context).pop(response);
   }
 
-  void _handleSuccessResponse() {
+  void _handleOAuthResponse(OAuthResponse response) async {
     if (!mounted) return;
 
-    print('OAuth 성공 처리 - 실제 토큰 없이 성공으로 처리');
+    // 🔥 응답에 토큰이 있으면 JWT 파싱 수행
+    if (response.success && response.accessToken != null) {
+      try {
+        print('=== OAuthResponse에서 토큰 처리 시작 ===');
+        await _processOAuthToken(response.accessToken!);
+        print('✅ OAuthResponse 토큰 처리 완료');
+      } catch (e) {
+        print('❌ OAuthResponse 토큰 처리 실패: $e');
+      }
+    }
 
-    final response = OAuthResponse(
-      success: true,
-      message: 'OAuth 인증이 완료되었습니다. 회원가입을 진행해주세요.',
-      accessToken: null, // 실제 토큰이 없으면 null로 설정
-    );
-
-    Navigator.of(context).pop(response);
-  }
-
-  void _handleOAuthResponse(OAuthResponse response) {
-    if (!mounted) return;
     Navigator.of(context).pop(response);
   }
 

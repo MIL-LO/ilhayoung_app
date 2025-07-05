@@ -1,8 +1,12 @@
+// lib/screens/profile/mypage_screen.dart - 개인정보 조회 기능 추가
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/enums/user_type.dart';
 import '../../components/common/unified_app_header.dart';
-import '../../services/auth_service.dart'; // AuthService import 추가
+import '../../services/auth_service.dart';
+import '../../services/account_deletion_service.dart'; // 회원 탈퇴 서비스 추가
+import 'user_info_screen.dart'; // 사용자 정보 화면 import 추가
 
 class MyPageScreen extends StatefulWidget {
   final UserType userType;
@@ -22,7 +26,7 @@ class _MyPageScreenState extends State<MyPageScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  bool _isLoggingOut = false; // 로그아웃 상태 변수 추가
+  bool _isLoggingOut = false;
 
   @override
   void initState() {
@@ -131,7 +135,7 @@ class _MyPageScreenState extends State<MyPageScreen>
           const SizedBox(height: 16),
 
           Text(
-            isEmployer ? '김사업자' : '홍길동',
+            isEmployer ? '김사업자' : '가연님',
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -290,10 +294,10 @@ class _MyPageScreenState extends State<MyPageScreen>
             ),
             _buildMenuItem(
               '개인 정보',
-              '개인 정보를 수정하세요',
+              '개인 정보를 확인하고 수정하세요',
               Icons.person_outline,
               primaryColor,
-                  () => _showFeatureDialog('개인 정보'),
+              _showUserInfo, // 🔧 실제 사용자 정보 조회 함수 연결
             ),
           ],
         ],
@@ -413,6 +417,13 @@ class _MyPageScreenState extends State<MyPageScreen>
                 () => _showFeatureDialog('계정 설정'),
           ),
           _buildMenuItem(
+            '회원 탈퇴',
+            '계정을 영구적으로 삭제합니다',
+            Icons.delete_forever_outlined,
+            Colors.red[400]!, // 빨간색으로 구분
+            _showAccountDeletionDialog, // 회원 탈퇴 다이얼로그
+          ),
+          _buildMenuItem(
             '고객센터',
             '문의사항이나 도움이 필요하시면 연락하세요',
             Icons.help_outline,
@@ -436,56 +447,61 @@ class _MyPageScreenState extends State<MyPageScreen>
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        border: Border.all(color: primaryColor),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red[300]!),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: _isLoggingOut ? null : _handleLogout, // 로딩 중일 때 비활성화
-          child: Center(
-            child: _isLoggingOut
-                ? Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+          onTap: _isLoggingOut ? null : _handleLogout,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: _isLoggingOut
+                  ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.red[400]!),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '로그아웃 중...',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: primaryColor,
+                  const SizedBox(width: 12),
+                  Text(
+                    '로그아웃 중...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red[400],
+                    ),
                   ),
-                ),
-              ],
-            )
-                : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.logout,
-                  color: primaryColor,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '로그아웃',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: primaryColor,
+                ],
+              )
+                  : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.logout,
+                    color: Colors.red[400],
+                    size: 20,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    '로그아웃',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red[400],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -493,148 +509,267 @@ class _MyPageScreenState extends State<MyPageScreen>
     );
   }
 
-  void _showFeatureDialog(String feature) {
-    final bool isEmployer = widget.userType == UserType.employer;
-    final Color primaryColor = isEmployer
-        ? const Color(0xFF2D3748)
-        : const Color(0xFF00A3A3);
+  // 🎯 핵심 기능: 사용자 정보 조회
+  void _showUserInfo() async {
+    try {
+      HapticFeedback.lightImpact();
 
+      // 사용자 정보 화면으로 이동 (userType 파라미터 전달)
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => UserInfoScreen(
+            userType: widget.userType, // 필수 파라미터 전달
+          ),
+        ),
+      );
+    } catch (e) {
+      print('사용자 정보 화면 이동 오류: $e');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('개인정보를 불러오는데 실패했습니다'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _showFeatureDialog(String feature) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Icon(
-              Icons.construction,
-              color: primaryColor,
-              size: 24,
-            ),
-            const SizedBox(width: 8),
-            const Text('준비 중'),
-          ],
-        ),
-        content: Text('$feature 기능은 곧 추가될 예정입니다.'),
+        title: Text(feature),
+        content: Text('$feature 기능은 곧 업데이트 예정입니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(
-              foregroundColor: primaryColor,
-            ),
-            child: const Text('확인'),
+            child: Text('확인'),
           ),
         ],
       ),
     );
   }
 
-  void _handleLogout() async {
-    final bool isEmployer = widget.userType == UserType.employer;
-    final Color primaryColor = isEmployer
-        ? const Color(0xFF2D3748)
-        : const Color(0xFF00A3A3);
-
+  // 🚨 회원 탈퇴 다이얼로그
+  void _showAccountDeletionDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red[400], size: 24),
+            const SizedBox(width: 8),
+            const Text('회원 탈퇴'),
+          ],
         ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '정말로 탈퇴하시겠습니까?',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '⚠️ 주의사항',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red[700],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '• 모든 개인정보가 영구적으로 삭제됩니다\n'
+                        '• 지원 내역 및 근무 기록이 삭제됩니다\n'
+                        '• 복구가 불가능합니다',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _handleAccountDeletion();
+            },
+            child: Text(
+              '탈퇴하기',
+              style: TextStyle(
+                color: Colors.red[400],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🚨 회원 탈퇴 처리
+  void _handleAccountDeletion() async {
+    // 로딩 다이얼로그 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.red[400]!),
+            ),
+            const SizedBox(height: 16),
+            const Text('회원 탈퇴 처리 중...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // 회원 탈퇴 API 호출
+      final result = await AccountDeletionService.deleteAccount();
+
+      // 로딩 다이얼로그 닫기
+      if (mounted) Navigator.pop(context);
+
+      if (result['success']) {
+        // 성공: 성공 메시지 표시 후 로그인 화면으로 이동
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green[400], size: 24),
+                  const SizedBox(width: 8),
+                  const Text('탈퇴 완료'),
+                ],
+              ),
+              content: Text(result['message'] ?? '회원 탈퇴가 완료되었습니다'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // AuthWrapper로 상태 전달하여 로그인 화면으로 이동
+                    if (widget.onLogout != null) {
+                      widget.onLogout!();
+                    }
+                  },
+                  child: const Text('확인'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        // 실패: 에러 메시지 표시
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['error'] ?? '회원 탈퇴에 실패했습니다'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('회원 탈퇴 처리 오류: $e');
+
+      // 로딩 다이얼로그 닫기
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('회원 탈퇴 중 오류가 발생했습니다'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleLogout() async {
+    // 로그아웃 확인 다이얼로그
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
         title: const Text('로그아웃'),
         content: const Text('정말 로그아웃하시겠습니까?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              '취소',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
           ),
           TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-
-              // 로그아웃 진행 중 상태 표시
-              setState(() {
-                _isLoggingOut = true;
-              });
-
-              try {
-                // 서버 + 카카오 로그아웃 API 호출
-                final success = await AuthService.logout();
-
-                // 스낵바 메시지 표시 (화면이 사라지기 전에)
-                if (mounted) {
-                  String message;
-                  Color backgroundColor;
-
-                  if (success) {
-                    message = '로그아웃되었습니다';
-                    backgroundColor = primaryColor;
-                  } else {
-                    message = '로그아웃되었습니다 (일부 서버 연결 오류)';
-                    backgroundColor = Colors.orange;
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(message),
-                      backgroundColor: backgroundColor,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      duration: const Duration(milliseconds: 1500), // 짧게 표시
-                    ),
-                  );
-                }
-
-                // 잠깐 기다린 후 로그아웃 콜백 실행 (스낵바가 표시된 후)
-                await Future.delayed(const Duration(milliseconds: 500));
-
-                if (widget.onLogout != null) {
-                  widget.onLogout!();
-                }
-
-              } catch (e) {
-                // 완전히 실패한 경우도 일단 로그아웃 처리
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('로그아웃 중 오류가 발생했지만 로그아웃됩니다'),
-                      backgroundColor: Colors.orange,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      duration: const Duration(milliseconds: 1500),
-                    ),
-                  );
-                }
-
-                // 오류가 발생해도 로그아웃 콜백 실행
-                await Future.delayed(const Duration(milliseconds: 500));
-                if (widget.onLogout != null) {
-                  widget.onLogout!();
-                }
-              } finally {
-                // 로딩 상태 해제
-                if (mounted) {
-                  setState(() {
-                    _isLoggingOut = false;
-                  });
-                }
-              }
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: primaryColor,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              '로그아웃',
+              style: TextStyle(color: Colors.red[400]),
             ),
-            child: const Text('로그아웃'),
           ),
         ],
       ),
     );
+
+    if (shouldLogout == true) {
+      setState(() {
+        _isLoggingOut = true;
+      });
+
+      try {
+        // AuthService를 통한 로그아웃 처리
+        await AuthService.logout();
+
+        // 콜백 함수 호출 (AuthWrapper로 상태 전달)
+        if (widget.onLogout != null) {
+          widget.onLogout!();
+        }
+      } catch (e) {
+        print('로그아웃 오류: $e');
+
+        setState(() {
+          _isLoggingOut = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('로그아웃에 실패했습니다'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }

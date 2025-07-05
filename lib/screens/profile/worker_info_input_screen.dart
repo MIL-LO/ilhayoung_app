@@ -1,11 +1,17 @@
+// lib/screens/profile/worker_info_input_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Riverpod import 추가
+import 'package:shared_preferences/shared_preferences.dart'; // SharedPreferences import 추가
 import '../../core/enums/user_type.dart';
 import '../../components/common/unified_app_header.dart';
+import '../../services/signup_service.dart'; // SignupService import 추가
+import '../../services/auth_service.dart'; // AuthService import 추가
+import '../../providers/auth_state_provider.dart'; // AuthStateProvider import 추가
+import '../auth/auth_wrapper.dart'; // AuthWrapper import 추가
 
-class WorkerInfoInputScreen extends StatefulWidget {
+class WorkerInfoInputScreen extends ConsumerStatefulWidget {
   final Function(UserType) onComplete;
 
   const WorkerInfoInputScreen({
@@ -14,10 +20,10 @@ class WorkerInfoInputScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<WorkerInfoInputScreen> createState() => _WorkerInfoInputScreenState();
+  ConsumerState<WorkerInfoInputScreen> createState() => _WorkerInfoInputScreenState();
 }
 
-class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
+class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
     with TickerProviderStateMixin {
 
   late AnimationController _fadeController;
@@ -25,7 +31,6 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
 
   // 폼 컨트롤러들
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _experienceController = TextEditingController();
   final _dongController = TextEditingController();
@@ -78,7 +83,6 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
   @override
   void dispose() {
     _fadeController.dispose();
-    _nameController.dispose();
     _phoneController.dispose();
     _experienceController.dispose();
     _dongController.dispose();
@@ -93,6 +97,13 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
         title: '프로필 설정',
         subtitle: '구직자 정보를 입력해주세요',
         emoji: '👤',
+        showBackButton: true, // 🔥 뒤로가기 버튼 추가!
+        onBackPressed: () {
+          print('🎯 UnifiedAppHeader onBackPressed 호출됨!'); // 디버깅 로그
+          _handleBackPress(); // 커스텀 뒤로가기 동작
+        },
+        backgroundColor: const Color(0xFFF8FFFE),
+        foregroundColor: const Color(0xFF00A3A3),
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
@@ -106,10 +117,10 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 🚨 임시 디버깅 섹션 - 이미 가입된 사용자인 경우
+                      _buildCurrentStatusDebug(),
                       _buildWelcomeCard(),
                       const SizedBox(height: 24),
-                      _buildNameField(),
-                      const SizedBox(height: 20),
                       _buildBirthDateField(),
                       const SizedBox(height: 20),
                       _buildPhoneField(),
@@ -127,6 +138,210 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
         ),
       ),
       bottomSheet: _buildSubmitButton(),
+    );
+  }
+
+  // 🔙 커스텀 뒤로가기 처리 - 로그인 화면으로 이동
+  void _handleBackPress() {
+    print('🔙 _handleBackPress 호출됨!'); // 디버깅 로그
+
+    // 입력된 정보가 있는지 확인
+    bool hasInputData = _selectedBirthDate != null ||
+        _phoneController.text.isNotEmpty ||
+        _selectedCity != null ||
+        _selectedDistrict != null ||
+        _dongController.text.isNotEmpty ||
+        _experienceController.text.isNotEmpty;
+
+    print('📋 입력된 데이터 존재: $hasInputData'); // 디버깅 로그
+    print('  - 생년월일: ${_selectedBirthDate != null}');
+    print('  - 연락처: ${_phoneController.text.isNotEmpty}');
+    print('  - 도시: ${_selectedCity != null}');
+    print('  - 구역: ${_selectedDistrict != null}');
+    print('  - 동: ${_dongController.text.isNotEmpty}');
+    print('  - 경험: ${_experienceController.text.isNotEmpty}');
+
+    if (hasInputData) {
+      print('⚠️ 확인 다이얼로그 표시'); // 디버깅 로그
+      // 입력된 정보가 있으면 확인 다이얼로그 표시
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber, color: Colors.orange[600], size: 24),
+              const SizedBox(width: 8),
+              const Text('정말 나가시겠습니까?'),
+            ],
+          ),
+          content: const Text(
+            '입력하신 정보가 모두 사라지고\n'
+                '처음 로그인 화면으로 돌아갑니다.\n'
+                '정말로 나가시겠습니까?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                print('❌ 취소 버튼 클릭'); // 디버깅 로그
+                Navigator.pop(context);
+              },
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () {
+                print('✅ 나가기 버튼 클릭'); // 디버깅 로그
+                Navigator.pop(context); // 다이얼로그 닫기
+                _goToLoginScreen(); // 로그인 화면으로 이동
+              },
+              child: Text(
+                '나가기',
+                style: TextStyle(color: Colors.red[600]),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      print('🚀 바로 로그인 화면으로 이동'); // 디버깅 로그
+      // 입력된 정보가 없으면 바로 로그인 화면으로 이동
+      _goToLoginScreen();
+    }
+  }
+
+  // 🏠 로그인 화면으로 이동 - 로그아웃 처리 포함 (🔥 async로 변경)
+  Future<void> _goToLoginScreen() async {
+    print('🏠 로그인 화면으로 이동 - 로그아웃 처리 시작');
+
+    try {
+      print('📞 AuthService.logout() 호출 중...');
+      // 🔥 핵심: 로그아웃 처리로 인증 상태 초기화
+      final logoutSuccess = await AuthService.logout();
+      print('✅ 로그아웃 처리 완료: $logoutSuccess');
+
+      // 🔍 로그아웃 후 상태 확인
+      print('🔍 로그아웃 후 상태 확인:');
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final needsSignup = await AuthService.needsSignup();
+      print('  - isLoggedIn: $isLoggedIn');
+      print('  - needsSignup: $needsSignup');
+
+      // Navigator 스택을 모두 제거하고 AuthWrapper로 이동
+      // AuthWrapper가 인증 상태를 다시 확인하여 로그인 화면으로 보냄
+      if (mounted) {
+        print('🚀 AuthWrapper로 네비게이션 시작...');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => AuthWrapper()),
+              (route) => false, // 모든 이전 화면 제거
+        );
+        print('✅ AuthWrapper로 네비게이션 완료');
+      }
+
+    } catch (e) {
+      print('❌ 로그아웃 처리 중 오류: $e');
+
+      // 🛡️ 오류가 발생해도 강제로 로컬 데이터 삭제 시도
+      try {
+        print('🛡️ 수동 데이터 삭제 시도...');
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+        print('✅ 수동 데이터 삭제 완료');
+      } catch (clearError) {
+        print('❌ 수동 데이터 삭제 실패: $clearError');
+      }
+
+      // 오류가 발생해도 AuthWrapper로 이동 (안전장치)
+      if (mounted) {
+        print('🚀 강제 AuthWrapper로 네비게이션...');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => AuthWrapper()),
+              (route) => false,
+        );
+        print('✅ 강제 AuthWrapper로 네비게이션 완료');
+      }
+    }
+  }
+
+  // 🚨 임시 디버깅 섹션 - 현재 상태 확인 및 자동 수정
+  Widget _buildCurrentStatusDebug() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red[300]!),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '🚨 이미 가입된 사용자입니다',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.red[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '회원가입 화면이 나오면 안 되는 상황입니다.\n현재 상태를 확인하고 수정합니다.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.red[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    print('🔍 현재 상태 확인 버튼 클릭');
+                    await AuthService.debugStoredData();
+                  },
+                  icon: const Icon(Icons.search, size: 16),
+                  label: const Text('현재 상태 확인', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[500],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    print('🔧 자동 수정 버튼 클릭');
+
+                    // 1. 사용자 상태를 ACTIVE로 업데이트
+                    await AuthService.forceUpdateToVerified();
+
+                    // 2. AuthStateProvider 새로고침
+                    ref.read(authStateProvider.notifier).refresh();
+
+                    // 3. AuthWrapper로 이동하여 상태 재확인
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (context) => AuthWrapper()),
+                            (route) => false,
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.auto_fix_high, size: 16),
+                  label: const Text('자동 수정', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[500],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -176,53 +391,6 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildNameField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '이름 *',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF00A3A3),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _nameController,
-          decoration: InputDecoration(
-            hintText: '실명을 입력해주세요',
-            prefixIcon: const Icon(Icons.person, color: Color(0xFF00A3A3)),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF00A3A3), width: 2),
-            ),
-          ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return '이름을 입력해주세요';
-            }
-            if (value.trim().length < 2) {
-              return '이름은 2글자 이상 입력해주세요';
-            }
-            return null;
-          },
-        ),
-      ],
     );
   }
 
@@ -481,20 +649,20 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
             ),
             child: _isSubmitting
                 ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
                 : const Text(
-                    '🌊 시작하기',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              '🌊 시작하기',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ),
       ),
@@ -569,7 +737,11 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
   }
 
   void _submitForm() async {
+    print('=== 회원가입 폼 제출 시작 ===');
+
+    // 폼 유효성 검사
     if (!_formKey.currentState!.validate()) {
+      print('폼 유효성 검사 실패');
       return;
     }
 
@@ -598,18 +770,93 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
     });
 
     try {
-      // 여기서 실제로 데이터를 저장하는 로직 구현
-      await Future.delayed(const Duration(seconds: 2)); // 임시 지연
+      // 생년월일을 API 형식으로 변환 (YYYY-MM-DD)
+      String birthDate = "${_selectedBirthDate!.year}-${_selectedBirthDate!.month.toString().padLeft(2, '0')}-${_selectedBirthDate!.day.toString().padLeft(2, '0')}";
 
-      // 성공 시 콜백 실행
-      widget.onComplete(UserType.worker);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('정보 저장 중 오류가 발생했습니다: $e'),
-          backgroundColor: Colors.red,
-        ),
+      // 주소 조합
+      String address = '$_selectedCity $_selectedDistrict';
+      if (_dongController.text.trim().isNotEmpty) {
+        address += ' ${_dongController.text.trim()}';
+      }
+
+      // 경험 입력 (빈 값이면 기본 메시지)
+      String experience = _experienceController.text.trim();
+      if (experience.isEmpty) {
+        experience = '경험 없음';
+      }
+
+      print('회원가입 데이터 준비 완료:');
+      print('- 생년월일: $birthDate');
+      print('- 연락처: ${_phoneController.text.trim()}');
+      print('- 주소: $address');
+      print('- 경험: $experience');
+
+      // SignupService를 통해 API 호출
+      final result = await SignupService.completeStaffSignup(
+        birthDate: birthDate,
+        phone: _phoneController.text.trim(),
+        address: address,
+        experience: experience,
       );
+
+      if (mounted) {
+        if (result['success']) {
+          print('✅ 회원가입 성공!');
+
+          // 🔥 회원가입 성공 시 사용자 상태를 ACTIVE로 업데이트하여 자동 로그인 활성화
+          await AuthService.updateUserStatusToVerified();
+          print('✅ 사용자 상태 ACTIVE로 업데이트 완료 (자동 로그인 활성화)');
+
+          // 성공 메시지 표시
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? '회원가입이 완료되었습니다!'),
+              backgroundColor: const Color(0xFF00A3A3),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          // 🔥 잠깐 기다린 후 콜백 실행 (AuthStateProvider에서 자동 로그인 활성화)
+          await Future.delayed(const Duration(milliseconds: 500));
+          widget.onComplete(UserType.worker);
+
+        } else {
+          print('❌ 회원가입 실패: ${result['error']}');
+
+          // 실패 메시지 표시
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['error'] ?? '회원가입에 실패했습니다'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ 회원가입 처리 중 예외 발생: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('회원가입 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -620,51 +867,81 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
   }
 }
 
-
+// 🔥 완전히 새로 작성된 안전한 PhoneNumberFormatter
 class PhoneNumberFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue,
+      TextEditingValue newValue,) {
     try {
       // 숫자만 추출
-      String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-
-      // 최대 11자리로 제한
-      if (digitsOnly.length > 11) {
-        digitsOnly = digitsOnly.substring(0, 11);
-      }
+      String digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
       // 빈 문자열 처리
-      if (digitsOnly.isEmpty) {
-        return const TextEditingValue(text: '');
+      if (digits.isEmpty) {
+        return const TextEditingValue(
+          text: '',
+          selection: TextSelection.collapsed(offset: 0),
+        );
       }
 
-      String formatted = _formatPhoneNumber(digitsOnly);
+      // 최대 11자리로 제한
+      if (digits.length > 11) {
+        digits = digits.substring(0, 11);
+      }
+
+      // 안전한 포맷팅
+      String formatted = _safeFormatPhoneNumber(digits);
 
       return TextEditingValue(
         text: formatted,
         selection: TextSelection.collapsed(offset: formatted.length),
       );
     } catch (e) {
-      // 오류 발생 시 원본 값 반환
+      // 모든 오류 상황에서 안전한 처리
       print('PhoneNumberFormatter 오류: $e');
-      return newValue;
+
+      // 숫자만 추출해서 반환 (포맷팅 없이)
+      String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digitsOnly.length > 11) {
+        digitsOnly = digitsOnly.substring(0, 11);
+      }
+
+      return TextEditingValue(
+        text: digitsOnly,
+        selection: TextSelection.collapsed(offset: digitsOnly.length),
+      );
     }
   }
 
-  String _formatPhoneNumber(String digits) {
-    if (digits.length <= 3) {
+  String _safeFormatPhoneNumber(String digits) {
+    try {
+      // 길이별 안전한 포맷팅
+      switch (digits.length) {
+        case 0:
+          return '';
+        case 1:
+        case 2:
+        case 3:
+          return digits;
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        // 010-1234
+          return '${digits.substring(0, 3)}-${digits.substring(3)}';
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        default:
+        // 010-1234-5678
+          return '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits
+              .substring(7)}';
+      }
+    } catch (e) {
+      // 포맷팅 실패 시 원본 반환
+      print('_safeFormatPhoneNumber 오류: $e');
       return digits;
-    } else if (digits.length <= 7) {
-      return '${digits.substring(0, 3)}-${digits.substring(3)}';
-    } else if (digits.length <= 11) {
-      // 마지막 부분 길이 계산
-      int lastPartLength = digits.length - 7;
-      return '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}';
     }
-
-    return digits;
   }
 }

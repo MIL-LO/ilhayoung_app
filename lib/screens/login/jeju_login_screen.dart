@@ -1,22 +1,29 @@
-import 'package:flutter/material.dart';
+// lib/screens/login/jeju_login_screen.dart
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:convert';
 import '../../core/enums/user_type.dart';
-import '../../services/auth_service.dart'; // AuthService 추가
+import '../../services/oauth_service.dart';
+import '../../providers/auth_state_provider.dart';
 import '../../components/jeju/jeju_carousel_slider.dart';
 import '../../components/login/user_type_selector.dart';
 import '../../components/login/google_login_button.dart';
 import '../../components/login/jeju_message_card.dart';
 
-class JejuLoginScreen extends StatefulWidget {
-  final Function(UserType)? onLoginSuccess;
+class JejuLoginScreen extends ConsumerStatefulWidget {
+  final Function(UserType) onLoginSuccess;
 
-  const JejuLoginScreen({Key? key, this.onLoginSuccess}) : super(key: key);
+  const JejuLoginScreen({
+    Key? key,
+    required this.onLoginSuccess,
+  }) : super(key: key);
 
   @override
-  State<JejuLoginScreen> createState() => _JejuLoginScreenState();
+  ConsumerState<JejuLoginScreen> createState() => _JejuLoginScreenState();
 }
 
-class _JejuLoginScreenState extends State<JejuLoginScreen> {
+class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
   bool _isWorker = true;
   bool _isGoogleLoading = false;
   bool _isKakaoLoading = false;
@@ -31,7 +38,7 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           onPressed: () {
-            // 뒤로 가기
+            // 뒤로 가기 (필요시 구현)
           },
         ),
         title: const Text(
@@ -178,7 +185,7 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
     );
   }
 
-  // 🔧 수정된 부분: 실제 AuthService 호출
+  // 카카오 로그인 처리 (Riverpod 상태 관리 연동)
   void _handleKakaoLogin() async {
     if (_isKakaoLoading) return;
 
@@ -188,34 +195,62 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
 
     try {
       final userType = _isWorker ? UserType.worker : UserType.employer;
+      print('=== 카카오 ${_isWorker ? '구직자' : '사업자'} 로그인 시작 ===');
 
-      // 실제 AuthService 호출
-      final response = await AuthService.signInWithOAuth(
+      // OAuth 로그인 실행
+      final result = await OAuthService.signInWithOAuth(
         context: context,
         provider: 'kakao',
         userType: userType,
       );
 
       if (mounted) {
-        if (response.success && widget.onLoginSuccess != null) {
-          // 로그인 성공 시 콜백 호출
-          widget.onLoginSuccess!(userType);
+        if (result.success) {
+          print('=== 카카오 OAuth 로그인 성공 ===');
+
+          // JWT 토큰에서 이메일 추출
+          String? email = _extractEmailFromToken(result.accessToken);
+
+          // AuthState Provider에 OAuth 결과 업데이트
+          await ref.read(authStateProvider.notifier).updateAfterOAuth(
+            accessToken: result.accessToken ?? '',
+            userType: userType,
+            email: email,
+          );
+
+          // 성공 콜백 호출
+          widget.onLoginSuccess(userType);
+
         } else {
-          // 로그인 실패 처리
+          print('=== 카카오 OAuth 로그인 실패 ===');
+          print('오류 메시지: ${result.message}');
+
+          // 실패 메시지 표시
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response.message ?? '로그인에 실패했습니다.'),
+              content: Text(result.message ?? '카카오 로그인에 실패했습니다'),
               backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           );
         }
       }
     } catch (e) {
+      print('=== 카카오 로그인 처리 중 오류 ===');
+      print('오류: $e');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('로그인 중 오류가 발생했습니다: $e'),
+            content: Text('카카오 로그인 중 오류가 발생했습니다: $e'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         );
       }
@@ -228,7 +263,7 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
     }
   }
 
-  // 🔧 수정된 부분: 실제 AuthService 호출
+  // 구글 로그인 처리 (Riverpod 상태 관리 연동)
   void _handleGoogleLogin() async {
     if (_isGoogleLoading) return;
 
@@ -238,34 +273,62 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
 
     try {
       final userType = _isWorker ? UserType.worker : UserType.employer;
+      print('=== 구글 ${_isWorker ? '구직자' : '사업자'} 로그인 시작 ===');
 
-      // 실제 AuthService 호출
-      final response = await AuthService.signInWithOAuth(
+      // OAuth 로그인 실행
+      final result = await OAuthService.signInWithOAuth(
         context: context,
         provider: 'google',
         userType: userType,
       );
 
       if (mounted) {
-        if (response.success && widget.onLoginSuccess != null) {
-          // 로그인 성공 시 콜백 호출
-          widget.onLoginSuccess!(userType);
+        if (result.success) {
+          print('=== 구글 OAuth 로그인 성공 ===');
+
+          // JWT 토큰에서 이메일 추출
+          String? email = _extractEmailFromToken(result.accessToken);
+
+          // AuthState Provider에 OAuth 결과 업데이트
+          await ref.read(authStateProvider.notifier).updateAfterOAuth(
+            accessToken: result.accessToken ?? '',
+            userType: userType,
+            email: email,
+          );
+
+          // 성공 콜백 호출
+          widget.onLoginSuccess(userType);
+
         } else {
-          // 로그인 실패 처리
+          print('=== 구글 OAuth 로그인 실패 ===');
+          print('오류 메시지: ${result.message}');
+
+          // 실패 메시지 표시
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response.message ?? '로그인에 실패했습니다.'),
+              content: Text(result.message ?? '구글 로그인에 실패했습니다'),
               backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           );
         }
       }
     } catch (e) {
+      print('=== 구글 로그인 처리 중 오류 ===');
+      print('오류: $e');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('로그인 중 오류가 발생했습니다: $e'),
+            content: Text('구글 로그인 중 오류가 발생했습니다: $e'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         );
       }
@@ -275,6 +338,28 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
           _isGoogleLoading = false;
         });
       }
+    }
+  }
+
+  /// JWT 토큰에서 이메일 추출하는 헬퍼 함수
+  String? _extractEmailFromToken(String? token) {
+    if (token == null) return null;
+
+    try {
+      // JWT 토큰은 header.payload.signature 형식
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+
+      // payload 부분 디코딩
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> claims = json.decode(decoded);
+
+      return claims['email'] as String?;
+    } catch (e) {
+      print('토큰에서 이메일 추출 실패: $e');
+      return null;
     }
   }
 }
