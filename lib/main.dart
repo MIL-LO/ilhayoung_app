@@ -2,13 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 
 import 'core/theme/app_theme.dart';
 import 'screens/auth/auth_wrapper.dart';
 
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 카카오 SDK 초기화 - 어드민 키 사용
+  KakaoSdk.init(
+    nativeAppKey: 'fb03d17c29c528ca587a8f2ac72345c0', // 어드민 키 사용
+  );
 
   // 웹에서는 시스템 UI 설정을 건너뛰기
   if (!kIsWeb) {

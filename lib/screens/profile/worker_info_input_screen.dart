@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+
 import '../../core/enums/user_type.dart';
 import '../../components/common/unified_app_header.dart';
 
@@ -619,26 +620,51 @@ class _WorkerInfoInputScreenState extends State<WorkerInfoInputScreen>
   }
 }
 
-// 전화번호 포맷터
+
 class PhoneNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final text = newValue.text;
-    if (text.length <= 3) {
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    try {
+      // 숫자만 추출
+      String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+      // 최대 11자리로 제한
+      if (digitsOnly.length > 11) {
+        digitsOnly = digitsOnly.substring(0, 11);
+      }
+
+      // 빈 문자열 처리
+      if (digitsOnly.isEmpty) {
+        return const TextEditingValue(text: '');
+      }
+
+      String formatted = _formatPhoneNumber(digitsOnly);
+
+      return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    } catch (e) {
+      // 오류 발생 시 원본 값 반환
+      print('PhoneNumberFormatter 오류: $e');
       return newValue;
-    } else if (text.length <= 7) {
-      return TextEditingValue(
-        text: '${text.substring(0, 3)}-${text.substring(3)}',
-        selection: TextSelection.collapsed(offset: text.length + 1),
-      );
-    } else {
-      return TextEditingValue(
-        text: '${text.substring(0, 3)}-${text.substring(3, 7)}-${text.substring(7, 11)}',
-        selection: TextSelection.collapsed(offset: text.length + 2),
-      );
     }
+  }
+
+  String _formatPhoneNumber(String digits) {
+    if (digits.length <= 3) {
+      return digits;
+    } else if (digits.length <= 7) {
+      return '${digits.substring(0, 3)}-${digits.substring(3)}';
+    } else if (digits.length <= 11) {
+      // 마지막 부분 길이 계산
+      int lastPartLength = digits.length - 7;
+      return '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}';
+    }
+
+    return digits;
   }
 }

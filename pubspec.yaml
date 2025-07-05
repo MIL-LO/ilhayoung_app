@@ -2,7 +2,7 @@ name: ilhayoung_app
 description: "제주 일자리 플랫폼 - 일하영"
 publish_to: 'none'
 
-version: 888.0.1+23
+version: 888.0.1+24
 
 environment:
   sdk: ^3.8.1
@@ -14,6 +14,9 @@ dependencies:
   # 기존 패키지들
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^2.6.1
+
+  # 카카오 로그인 SDK
+  kakao_flutter_sdk: ^1.9.1
 
   # OAuth 로그인용 패키지들
   url_launcher: ^6.2.1             # URL 실행

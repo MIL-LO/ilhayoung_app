@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../../core/enums/user_type.dart';
 import '../../core/models/oauth_response.dart';
 import '../../services/oauth_service.dart';
+import '../../config/app_config.dart';
 
 class AuthService {
   static const String _accessTokenKey = 'access_token';
@@ -197,14 +199,82 @@ class AuthService {
     return status;
   }
 
-  /// 로그아웃
-  static Future<void> logout() async {
+  /// 액세스 토큰 가져오기
+  static Future<String?> getAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_accessTokenKey);
+  }
+
+  /// 서버 로그아웃 API 호출
+  static Future<bool> logoutFromServer() async {
+    try {
+      print('=== 서버 로그아웃 시작 ===');
+
+      final accessToken = await getAccessToken();
+      if (accessToken == null) {
+        print('액세스 토큰이 없음');
+        return false;
+      }
+
+      final url = Uri.parse('${AppConfig.baseUrl}/api/v1/auth/logout');
+      print('로그아웃 요청 URL: $url');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      print('로그아웃 응답 상태: ${response.statusCode}');
+      print('로그아웃 응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print('서버 로그아웃 성공');
+        return true;
+      } else {
+        print('서버 로그아웃 실패: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('서버 로그아웃 오류: $e');
+      return false;
+    }
+  }
+
+  /// 로그아웃 (서버 + 로컬)
+  static Future<bool> logout() async {
+    try {
+      print('=== 로그아웃 시작 ===');
+
+      // 1. 서버 로그아웃 API 호출
+      final serverLogoutSuccess = await logoutFromServer();
+
+      // 2. 로컬 토큰 및 사용자 정보 삭제 (서버 로그아웃 실패해도 로컬은 삭제)
+      await _clearLocalData();
+
+      print('로그아웃 완료 - 서버 로그아웃: $serverLogoutSuccess');
+
+      // 서버 로그아웃이 실패해도 로컬 데이터는 삭제되므로 true 반환
+      return true;
+    } catch (e) {
+      print('로그아웃 오류: $e');
+
+      // 오류가 발생해도 로컬 데이터는 삭제
+      await _clearLocalData();
+      return false;
+    }
+  }
+
+  /// 로컬 데이터 삭제
+  static Future<void> _clearLocalData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_accessTokenKey);
     await prefs.remove(_refreshTokenKey);
     await prefs.remove(_userTypeKey);
     await prefs.remove(_userStatusKey);
     await prefs.remove(_userEmailKey);
-    print('로그아웃 완료 - 모든 토큰 및 사용자 정보 삭제됨');
+    print('로컬 데이터 삭제 완료 - 모든 토큰 및 사용자 정보 삭제됨');
   }
 }
