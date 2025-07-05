@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-enum EmployerNavTab { createJob, manageStaff, home, myJobs, mypage }
+enum EmployerNavTab { createJob, manageStaff, home, salary, mypage }
 
 class JejuEmployerNavBar extends StatefulWidget {
   final EmployerNavTab selectedTab;
@@ -76,10 +76,10 @@ class _JejuEmployerNavBarState extends State<JejuEmployerNavBar> {
                 isHome: true,
               ),
               _buildNavItem(
-                tab: EmployerNavTab.myJobs,
-                icon: Icons.work_outline,
-                activeIcon: Icons.work,
-                label: '내 공고',
+                tab: EmployerNavTab.salary,
+                icon: Icons.payments_outlined,
+                activeIcon: Icons.payments,
+                label: '급여',
                 badge: widget.hasActiveJobs ? true : null,
               ),
               _buildNavItem(
@@ -105,7 +105,7 @@ class _JejuEmployerNavBarState extends State<JejuEmployerNavBar> {
     bool isHome = false,
   }) {
     final isSelected = widget.selectedTab == tab;
-    final selectedColor = const Color(0xFF00A3A3); // 제주 바다색
+    final selectedColor = const Color(0xFF2D3748); // 사업자용 현무암색
     final unselectedColor = Colors.grey[600]!;
 
     return Expanded(

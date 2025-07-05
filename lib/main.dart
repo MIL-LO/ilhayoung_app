@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'screens/auth/auth_wrapper.dart';
 
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 

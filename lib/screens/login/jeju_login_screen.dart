@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/enums/user_type.dart';
+import '../../services/auth_service.dart'; // AuthService 추가
 import '../../components/jeju/jeju_carousel_slider.dart';
 import '../../components/login/user_type_selector.dart';
 import '../../components/login/google_login_button.dart';
@@ -117,31 +118,31 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
                     ),
                     icon: _isKakaoLoading
                         ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3A1D1D)),
-                            ),
-                          )
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3A1D1D)),
+                      ),
+                    )
                         : Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3A1D1D),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'K',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFFFE812),
-                                ),
-                              ),
-                            ),
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3A1D1D),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'K',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFFE812),
                           ),
+                        ),
+                      ),
+                    ),
                     label: Text(
                       _isKakaoLoading ? '' : '카카오로 시작하기',
                       style: const TextStyle(
@@ -164,8 +165,6 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
 
                 const SizedBox(height: 20),
 
-                // 또는 구분선 제거하고 바로 메시지 카드
-
                 // 제주 감성 메시지
                 JejuMessageCard(isWorker: _isWorker),
 
@@ -179,31 +178,103 @@ class _JejuLoginScreenState extends State<JejuLoginScreen> {
     );
   }
 
-  void _handleKakaoLogin() {
+  // 🔧 수정된 부분: 실제 AuthService 호출
+  void _handleKakaoLogin() async {
+    if (_isKakaoLoading) return;
+
     setState(() {
       _isKakaoLoading = true;
     });
 
-    // 2초 후 로그인 성공 콜백 실행
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted && widget.onLoginSuccess != null) {
-        final userType = _isWorker ? UserType.worker : UserType.employer;
-        widget.onLoginSuccess!(userType);
+    try {
+      final userType = _isWorker ? UserType.worker : UserType.employer;
+
+      // 실제 AuthService 호출
+      final response = await AuthService.signInWithOAuth(
+        context: context,
+        provider: 'kakao',
+        userType: userType,
+      );
+
+      if (mounted) {
+        if (response.success && widget.onLoginSuccess != null) {
+          // 로그인 성공 시 콜백 호출
+          widget.onLoginSuccess!(userType);
+        } else {
+          // 로그인 실패 처리
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? '로그인에 실패했습니다.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('로그인 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isKakaoLoading = false;
+        });
+      }
+    }
   }
 
-  void _handleGoogleLogin() {
+  // 🔧 수정된 부분: 실제 AuthService 호출
+  void _handleGoogleLogin() async {
+    if (_isGoogleLoading) return;
+
     setState(() {
       _isGoogleLoading = true;
     });
 
-    // 2초 후 로그인 성공 콜백 실행
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted && widget.onLoginSuccess != null) {
-        final userType = _isWorker ? UserType.worker : UserType.employer;
-        widget.onLoginSuccess!(userType);
+    try {
+      final userType = _isWorker ? UserType.worker : UserType.employer;
+
+      // 실제 AuthService 호출
+      final response = await AuthService.signInWithOAuth(
+        context: context,
+        provider: 'google',
+        userType: userType,
+      );
+
+      if (mounted) {
+        if (response.success && widget.onLoginSuccess != null) {
+          // 로그인 성공 시 콜백 호출
+          widget.onLoginSuccess!(userType);
+        } else {
+          // 로그인 실패 처리
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? '로그인에 실패했습니다.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('로그인 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
+    }
   }
 }
