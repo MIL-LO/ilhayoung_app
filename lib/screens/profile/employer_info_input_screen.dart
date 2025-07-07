@@ -1,9 +1,15 @@
+// lib/screens/profile/employer_info_input_screen.dart - 개선된 사업자 회원가입
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/enums/user_type.dart';
 import '../../components/common/unified_app_header.dart';
+import '../../services/employer_signup_service.dart';
+import '../../services/auth_service.dart';
+import '../../providers/auth_state_provider.dart';
 
-class EmployerInfoInputScreen extends StatefulWidget {
+class EmployerInfoInputScreen extends ConsumerStatefulWidget {
   final Function(UserType) onComplete;
 
   const EmployerInfoInputScreen({
@@ -12,77 +18,73 @@ class EmployerInfoInputScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<EmployerInfoInputScreen> createState() => _EmployerInfoInputScreenState();
+  ConsumerState<EmployerInfoInputScreen> createState() => _EmployerInfoInputScreenState();
 }
 
-class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
-    with SingleTickerProviderStateMixin {
+class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScreen>
+    with TickerProviderStateMixin {
+
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+
+  // 폼 관련
   final _formKey = GlobalKey<FormState>();
+  final _ownerNameController = TextEditingController();
   final _businessNameController = TextEditingController();
   final _businessNumberController = TextEditingController();
-  final _addressController = TextEditingController();
+  final _businessAddressController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _ownerNameController = TextEditingController();
 
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
+  // 상태 변수
   String _selectedBusinessType = '음식점';
+  bool _isSubmitting = false;
+  Map<String, String?> _validationErrors = {};
+
+  // 업종 목록
   final List<String> _businessTypes = [
-    '음식점', '카페', '편의점', '서비스업', '소매업', '기타'
+    '음식점', '카페', '편의점', '서비스업', '소매업', '숙박업', '관광업', '농업', '기타'
   ];
 
   @override
   void initState() {
     super.initState();
-    _setupAnimations();
-    _fillTestData(); // 테스트 데이터 자동 입력
+    _initAnimations();
+    _fillTestData(); // 개발용 테스트 데이터
   }
 
-  void _fillTestData() {
-    // 테스트용 데이터 자동 입력
-    _ownerNameController.text = '김사업자';
-    _businessNameController.text = '제주맛집카페';
-    _businessNumberController.text = '1234567890';
-    _addressController.text = '제주시 연동 123-45';
-    _phoneController.text = '010-1234-5678';
-    _selectedBusinessType = '카페';
-  }
-
-  void _setupAnimations() {
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+  void _initAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      parent: _fadeController,
+      curve: Curves.easeOutCubic,
     ));
+    _fadeController.forward();
+  }
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
-    ));
-
-    _animationController.forward();
+  void _fillTestData() {
+    // 개발용 테스트 데이터 자동 입력
+    _ownerNameController.text = '김사업자';
+    _businessNameController.text = '제주맛집카페';
+    _businessNumberController.text = '123-45-67890';
+    _businessAddressController.text = '제주시 연동 123-45 오션뷰빌딩 1층';
+    _phoneController.text = '010-1234-5678';
+    _selectedBusinessType = '카페';
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _fadeController.dispose();
+    _ownerNameController.dispose();
     _businessNameController.dispose();
     _businessNumberController.dispose();
-    _addressController.dispose();
+    _businessAddressController.dispose();
     _phoneController.dispose();
-    _ownerNameController.dispose();
     super.dispose();
   }
 
@@ -94,31 +96,100 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
         title: '사업자 정보 입력',
         subtitle: '사업장 정보를 입력해주세요',
         emoji: '🏢',
+        showBackButton: true,
+        onBackPressed: _handleBackPress,
+        backgroundColor: const Color(0xFFF8FFFE),
+        foregroundColor: const Color(0xFF2D3748),
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildWelcomeCard(),
-                  const SizedBox(height: 24),
-                  _buildInfoCard(),
-                  const SizedBox(height: 32),
-                  _buildSubmitButton(),
-                  const SizedBox(height: 20),
-                ],
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildWelcomeCard(),
+                      const SizedBox(height: 24),
+                      _buildInfoCard(),
+                      const SizedBox(height: 100), // 하단 버튼 여백
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
+      bottomSheet: _buildSubmitButton(),
     );
+  }
+
+  /// 🔙 뒤로가기 처리
+  void _handleBackPress() {
+    final hasInputData = _ownerNameController.text.isNotEmpty ||
+        _businessNameController.text.isNotEmpty ||
+        _businessNumberController.text.isNotEmpty ||
+        _businessAddressController.text.isNotEmpty ||
+        _phoneController.text.isNotEmpty;
+
+    if (hasInputData) {
+      _showBackConfirmDialog();
+    } else {
+      _goBackToLogin();
+    }
+  }
+
+  /// 뒤로가기 확인 다이얼로그
+  void _showBackConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber, color: Colors.orange[600], size: 24),
+            const SizedBox(width: 8),
+            const Text('정말 나가시겠습니까?'),
+          ],
+        ),
+        content: const Text(
+          '입력하신 정보가 모두 사라지고\n'
+              '처음 로그인 화면으로 돌아갑니다.\n'
+              '정말로 나가시겠습니까?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _goBackToLogin();
+            },
+            child: Text(
+              '나가기',
+              style: TextStyle(color: Colors.red[600]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 로그인 화면으로 돌아가기
+  Future<void> _goBackToLogin() async {
+    try {
+      print('🔙 로그인 화면으로 이동 - 로그아웃 처리');
+      await ref.read(authStateProvider.notifier).logout();
+      print('✅ 로그아웃 완료');
+    } catch (e) {
+      print('❌ 로그아웃 처리 오류: $e');
+    }
   }
 
   Widget _buildWelcomeCard() {
@@ -129,7 +200,7 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2D3748), Color(0xFF4A5568)], // 현무암색 그라데이션
+          colors: [Color(0xFF2D3748), Color(0xFF4A5568)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -242,12 +313,12 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D3748).withOpacity(0.1), // 현무암색
+                  color: const Color(0xFF2D3748).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.business,
-                  color: Color(0xFF2D3748), // 현무암색
+                  color: Color(0xFF2D3748),
                   size: 20,
                 ),
               ),
@@ -257,44 +328,40 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748), // 현무암색
+                  color: Color(0xFF2D3748),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 24),
 
+          // 대표자명
           _buildInputField(
             controller: _ownerNameController,
             label: '대표자명',
             hint: '홍길동',
             icon: Icons.person,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '대표자명을 입력해주세요';
-              }
-              return null;
-            },
+            errorText: _validationErrors['ownerName'],
+            onChanged: (_) => _clearError('ownerName'),
           ),
           const SizedBox(height: 20),
 
+          // 사업장명
           _buildInputField(
             controller: _businessNameController,
             label: '사업장명',
             hint: '제주 맛집',
             icon: Icons.store,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '사업장명을 입력해주세요';
-              }
-              return null;
-            },
+            errorText: _validationErrors['businessName'],
+            onChanged: (_) => _clearError('businessName'),
           ),
           const SizedBox(height: 20),
 
+          // 업종 선택
           _buildBusinessTypeDropdown(),
           const SizedBox(height: 20),
 
+          // 사업자등록번호
           _buildInputField(
             controller: _businessNumberController,
             label: '사업자등록번호',
@@ -304,45 +371,39 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(10),
+              BusinessNumberFormatter(),
             ],
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '사업자등록번호를 입력해주세요';
-              }
-              if (value.length != 10) {
-                return '올바른 사업자등록번호를 입력해주세요';
-              }
-              return null;
-            },
+            errorText: _validationErrors['businessNumber'],
+            onChanged: (_) => _clearError('businessNumber'),
           ),
           const SizedBox(height: 20),
 
+          // 사업장 주소
           _buildInputField(
-            controller: _addressController,
+            controller: _businessAddressController,
             label: '사업장 주소',
-            hint: '제주시 연동 123-45',
+            hint: '제주시 연동 123-45 오션뷰빌딩 1층',
             icon: Icons.location_on,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '사업장 주소를 입력해주세요';
-              }
-              return null;
-            },
+            maxLines: 2,
+            errorText: _validationErrors['businessAddress'],
+            onChanged: (_) => _clearError('businessAddress'),
           ),
           const SizedBox(height: 20),
 
+          // 연락처
           _buildInputField(
             controller: _phoneController,
             label: '연락처',
             hint: '010-1234-5678',
             icon: Icons.phone,
             keyboardType: TextInputType.phone,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '연락처를 입력해주세요';
-              }
-              return null;
-            },
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(11),
+              PhoneNumberFormatter(),
+            ],
+            errorText: _validationErrors['phone'],
+            onChanged: (_) => _clearError('phone'),
           ),
         ],
       ),
@@ -356,7 +417,9 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
     required IconData icon,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
+    int maxLines = 1,
+    String? errorText,
+    Function(String)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,7 +429,7 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF2D3748), // 현무암색
+            color: Color(0xFF2D3748),
           ),
         ),
         const SizedBox(height: 8),
@@ -374,12 +437,13 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
           controller: controller,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
-          validator: validator,
+          maxLines: maxLines,
+          onChanged: onChanged,
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(
               icon,
-              color: const Color(0xFF2D3748).withOpacity(0.6), // 현무암색
+              color: const Color(0xFF2D3748).withOpacity(0.6),
               size: 20,
             ),
             filled: true,
@@ -395,7 +459,7 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
-                color: Color(0xFF2D3748), // 현무암색
+                color: Color(0xFF2D3748),
                 width: 2,
               ),
             ),
@@ -403,10 +467,15 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red),
             ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,
             ),
+            errorText: errorText,
           ),
         ),
       ],
@@ -422,7 +491,7 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF2D3748), // 현무암색
+            color: Color(0xFF2D3748),
           ),
         ),
         const SizedBox(height: 8),
@@ -437,7 +506,7 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
             decoration: const InputDecoration(
               prefixIcon: Icon(
                 Icons.category,
-                color: Color(0xFF2D3748), // 현무암색
+                color: Color(0xFF2D3748),
                 size: 20,
               ),
               border: InputBorder.none,
@@ -457,6 +526,7 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
                 setState(() {
                   _selectedBusinessType = newValue;
                 });
+                _clearError('businessType');
               }
             },
           ),
@@ -467,35 +537,46 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
 
   Widget _buildSubmitButton() {
     return Container(
-      width: double.infinity,
-      height: 56,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF2D3748), Color(0xFF4A5568)], // 현무암색 그라데이션
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2D3748).withOpacity(0.3),
+            color: Colors.black.withOpacity(0.1),
+            offset: const Offset(0, -2),
             blurRadius: 8,
-            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: _handleSubmit,
-          child: const Center(
-            child: Text(
-              '등록 완료',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : _submitForm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2D3748),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
                 color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
+                : const Text(
+              '🏢 등록 완료',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -504,32 +585,233 @@ class _EmployerInfoInputScreenState extends State<EmployerInfoInputScreen>
     );
   }
 
-  void _handleSubmit() {
-    if (_formKey.currentState!.validate()) {
-      HapticFeedback.mediumImpact();
+  // 이벤트 핸들러들
+  void _clearError(String field) {
+    if (_validationErrors.containsKey(field)) {
+      setState(() {
+        _validationErrors.remove(field);
+      });
+    }
+  }
 
-      // 성공 스낵바 표시
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('사업자 정보가 등록되었습니다!'),
-            ],
-          ),
-          backgroundColor: const Color(0xFF2D3748), // 현무암색
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
+  Future<void> _submitForm() async {
+    print('=== 🎯 사업자 회원가입 폼 제출 시작 ===');
+
+    // 1️⃣ 입력값 유효성 검사
+    final errors = EmployerSignupService.validateManagerInfo(
+      ownerName: _ownerNameController.text,
+      businessName: _businessNameController.text,
+      businessNumber: _businessNumberController.text,
+      businessAddress: _businessAddressController.text,
+      phone: _phoneController.text,
+      businessType: _selectedBusinessType,
+    );
+
+    if (errors.isNotEmpty) {
+      setState(() {
+        _validationErrors = errors;
+      });
+      _showSnackBar('입력 정보를 확인해주세요.', Colors.red);
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _validationErrors.clear();
+    });
+
+    try {
+      print('📝 사업자 회원가입 데이터:');
+      print('- 대표자명: ${_ownerNameController.text.trim()}');
+      print('- 사업장명: ${_businessNameController.text.trim()}');
+      print('- 사업자번호: ${_businessNumberController.text.trim()}');
+      print('- 업종: $_selectedBusinessType');
+      print('- 주소: ${_businessAddressController.text.trim()}');
+      print('- 연락처: ${_phoneController.text.trim()}');
+
+      // 2️⃣ API 호출
+      final result = await EmployerSignupService.completeManagerSignup(
+        businessName: _businessNameController.text.trim(),
+        businessNumber: _businessNumberController.text.trim(),
+        businessType: _selectedBusinessType,
+        businessAddress: _businessAddressController.text.trim(),
+        ownerName: _ownerNameController.text.trim(),
+        phone: _phoneController.text.trim(),
       );
 
-      // 약간의 지연 후 다음 화면으로 이동
-      Future.delayed(const Duration(milliseconds: 500), () {
-        widget.onComplete(UserType.employer);
-      });
+      if (mounted) {
+        if (result['success']) {
+          print('✅ 사업자 회원가입 성공!');
+
+          // 3️⃣ 사용자 상태를 ACTIVE로 업데이트
+          await AuthService.updateUserStatusToVerified();
+          print('✅ 사용자 상태 ACTIVE로 업데이트 (자동 로그인 활성화)');
+
+          _showSnackBar('사업자 등록이 완료되었습니다! 🎉', const Color(0xFF2D3748));
+
+          // 4️⃣ AuthStateProvider 상태 업데이트 후 콜백 실행
+          await Future.delayed(const Duration(milliseconds: 500));
+          widget.onComplete(UserType.employer);
+
+        } else {
+          print('❌ 사업자 회원가입 실패: ${result['error']}');
+          _showSnackBar(result['error'] ?? '사업자 등록에 실패했습니다', Colors.red);
+        }
+      }
+    } catch (e) {
+      print('❌ 사업자 회원가입 처리 중 예외: $e');
+      if (mounted) {
+        _showSnackBar('사업자 등록 중 오류가 발생했습니다', Colors.red);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  void _showSnackBar(String message, Color backgroundColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+// 🔧 사업자등록번호 포맷터
+class BusinessNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    try {
+      String digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+      if (digits.isEmpty) {
+        return const TextEditingValue(
+          text: '',
+          selection: TextSelection.collapsed(offset: 0),
+        );
+      }
+
+      if (digits.length > 10) {
+        digits = digits.substring(0, 10);
+      }
+
+      String formatted = _formatBusinessNumber(digits);
+
+      return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    } catch (e) {
+      print('BusinessNumberFormatter 오류: $e');
+      String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digitsOnly.length > 10) {
+        digitsOnly = digitsOnly.substring(0, 10);
+      }
+      return TextEditingValue(
+        text: digitsOnly,
+        selection: TextSelection.collapsed(offset: digitsOnly.length),
+      );
+    }
+  }
+
+  String _formatBusinessNumber(String digits) {
+    try {
+      switch (digits.length) {
+        case 0:
+          return '';
+        case 1:
+        case 2:
+        case 3:
+          return digits;
+        case 4:
+        case 5:
+          return '${digits.substring(0, 3)}-${digits.substring(3)}';
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        default:
+          return '${digits.substring(0, 3)}-${digits.substring(3, 5)}-${digits.substring(5)}';
+      }
+    } catch (e) {
+      print('_formatBusinessNumber 오류: $e');
+      return digits;
+    }
+  }
+}
+
+// 🔧 개선된 전화번호 포맷터 (구직자 회원가입과 동일)
+class PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    try {
+      String digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+      if (digits.isEmpty) {
+        return const TextEditingValue(
+          text: '',
+          selection: TextSelection.collapsed(offset: 0),
+        );
+      }
+
+      if (digits.length > 11) {
+        digits = digits.substring(0, 11);
+      }
+
+      String formatted = _formatPhoneNumber(digits);
+
+      return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    } catch (e) {
+      print('PhoneNumberFormatter 오류: $e');
+      String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digitsOnly.length > 11) {
+        digitsOnly = digitsOnly.substring(0, 11);
+      }
+      return TextEditingValue(
+        text: digitsOnly,
+        selection: TextSelection.collapsed(offset: digitsOnly.length),
+      );
+    }
+  }
+
+  String _formatPhoneNumber(String digits) {
+    try {
+      switch (digits.length) {
+        case 0:
+          return '';
+        case 1:
+        case 2:
+        case 3:
+          return digits;
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+          return '${digits.substring(0, 3)}-${digits.substring(3)}';
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        default:
+          return '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}';
+      }
+    } catch (e) {
+      print('_formatPhoneNumber 오류: $e');
+      return digits;
     }
   }
 }

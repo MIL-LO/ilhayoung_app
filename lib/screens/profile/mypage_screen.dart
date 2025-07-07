@@ -1,12 +1,13 @@
-// lib/screens/profile/mypage_screen.dart - 개인정보 조회 기능 추가
+// lib/screens/profile/mypage_screen.dart - API 연동된 마이페이지
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/enums/user_type.dart';
 import '../../components/common/unified_app_header.dart';
 import '../../services/auth_service.dart';
-import '../../services/account_deletion_service.dart'; // 회원 탈퇴 서비스 추가
-import 'user_info_screen.dart'; // 사용자 정보 화면 import 추가
+import '../../services/account_deletion_service.dart';
+import '../../services/user_info_service.dart'; // 사용자 정보 API 서비스
+import 'user_info_screen.dart';
 
 class MyPageScreen extends StatefulWidget {
   final UserType userType;
@@ -27,11 +28,17 @@ class _MyPageScreenState extends State<MyPageScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   bool _isLoggingOut = false;
+  bool _isLoading = true;
+
+  // API에서 가져올 사용자 정보
+  Map<String, dynamic>? _userInfo;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _setupAnimations();
+    _loadUserInfo(); // API에서 사용자 정보 로드
   }
 
   void _setupAnimations() {
@@ -47,8 +54,43 @@ class _MyPageScreenState extends State<MyPageScreen>
       parent: _animationController,
       curve: Curves.easeOut,
     ));
+  }
 
-    _animationController.forward();
+  // 🔥 API에서 사용자 정보 로드
+  Future<void> _loadUserInfo() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      print('=== MyPageScreen 사용자 정보 로드 시작 ===');
+
+      final userInfo = await UserInfoService.getUserInfo();
+
+      if (userInfo != null) {
+        setState(() {
+          _userInfo = userInfo;
+          _isLoading = false;
+        });
+
+        print('✅ 사용자 정보 로드 성공: ${userInfo['name']}');
+
+        // 애니메이션 시작
+        _animationController.forward();
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = '사용자 정보를 불러올 수 없습니다';
+        });
+      }
+    } catch (e) {
+      print('❌ 사용자 정보 로드 실패: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '사용자 정보를 불러오는 중 오류가 발생했습니다';
+      });
+    }
   }
 
   @override
@@ -70,10 +112,79 @@ class _MyPageScreenState extends State<MyPageScreen>
         title: '마이페이지',
         subtitle: isEmployer ? '사업자 정보 관리' : '내 정보 관리',
         emoji: isEmployer ? '🏢' : '👤',
+        actions: [
+          // 새로고침 버튼
+          IconButton(
+            icon: Icon(Icons.refresh, color: primaryColor),
+            onPressed: _loadUserInfo,
+          ),
+        ],
       ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
+      body: _buildBody(primaryColor, isEmployer),
+    );
+  }
+
+  Widget _buildBody(Color primaryColor, bool isEmployer) {
+    if (_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: primaryColor),
+            const SizedBox(height: 16),
+            Text(
+              '사용자 정보를 불러오는 중...',
+              style: TextStyle(
+                color: primaryColor,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.red[400],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadUserInfo,
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: RefreshIndicator(
+        color: primaryColor,
+        onRefresh: _loadUserInfo,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
@@ -93,6 +204,23 @@ class _MyPageScreenState extends State<MyPageScreen>
   }
 
   Widget _buildProfileCard(Color primaryColor, bool isEmployer) {
+    // API에서 가져온 실제 데이터 사용
+    final String userName = _userInfo?['name'] ?? '사용자';
+    final String userEmail = _userInfo?['email'] ?? '';
+    final String userType = _userInfo?['userType'] ?? '';
+    final String businessName = _userInfo?['businessName'] ?? '';
+
+    String displayName = userName;
+    String displaySubtitle = '';
+
+    if (isEmployer) {
+      displayName = businessName.isNotEmpty ? businessName : userName;
+      displaySubtitle = '사업자';
+    } else {
+      displayName = '$userName님';
+      displaySubtitle = '구직자';
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -135,7 +263,7 @@ class _MyPageScreenState extends State<MyPageScreen>
           const SizedBox(height: 16),
 
           Text(
-            isEmployer ? '김사업자' : '가연님',
+            displayName,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -145,23 +273,43 @@ class _MyPageScreenState extends State<MyPageScreen>
           const SizedBox(height: 4),
 
           Text(
-            isEmployer ? '제주카페 대표' : '구직자',
+            displaySubtitle,
             style: TextStyle(
               fontSize: 14,
               color: Colors.white.withOpacity(0.9),
             ),
           ),
+
+          if (userEmail.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                userEmail,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withOpacity(0.9),
+                ),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 20),
 
+          // TODO: 통계 데이터도 API에서 가져오도록 수정 예정
           if (isEmployer) ...[
             Row(
               children: [
                 Expanded(
-                  child: _buildProfileStat('활성 공고', '3', Icons.work),
+                  child: _buildProfileStat('활성 공고', '0', Icons.work),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildProfileStat('근무자', '8', Icons.people),
+                  child: _buildProfileStat('근무자', '0', Icons.people),
                 ),
               ],
             ),
@@ -169,11 +317,11 @@ class _MyPageScreenState extends State<MyPageScreen>
             Row(
               children: [
                 Expanded(
-                  child: _buildProfileStat('지원 완료', '12', Icons.send),
+                  child: _buildProfileStat('지원 완료', '0', Icons.send),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildProfileStat('진행 중', '3', Icons.schedule),
+                  child: _buildProfileStat('진행 중', '0', Icons.schedule),
                 ),
               ],
             ),
@@ -514,20 +662,25 @@ class _MyPageScreenState extends State<MyPageScreen>
     try {
       HapticFeedback.lightImpact();
 
-      // 사용자 정보 화면으로 이동 (userType 파라미터 전달)
-      Navigator.push(
+      // 사용자 정보 화면으로 이동 (API에서 가져온 정보와 함께)
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => UserInfoScreen(
-            userType: widget.userType, // 필수 파라미터 전달
+            userType: widget.userType,
           ),
         ),
       );
+
+      // 사용자 정보 수정 후 돌아왔다면 마이페이지 새로고침
+      if (result == true) {
+        _loadUserInfo();
+      }
     } catch (e) {
       print('사용자 정보 화면 이동 오류: $e');
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('개인정보를 불러오는데 실패했습니다'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
@@ -545,7 +698,7 @@ class _MyPageScreenState extends State<MyPageScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('확인'),
+            child: const Text('확인'),
           ),
         ],
       ),

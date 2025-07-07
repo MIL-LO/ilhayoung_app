@@ -1,10 +1,8 @@
-// lib/screens/auth/auth_wrapper.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 🔥 추가
 import '../../providers/auth_state_provider.dart';
 import '../../core/enums/user_type.dart';
+import '../../services/auth_service.dart'; // 추가
 import '../login/jeju_login_screen.dart';
 import '../profile/worker_info_input_screen.dart';
 import '../profile/employer_info_input_screen.dart';
@@ -26,10 +24,24 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // 🔥 앱 시작 시 인증 상태 새로고침 (자동 로그인 체크)
+    // 🔍 앱 시작 시 인증 상태 디버깅
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _refreshAuthStatus();
+      _debugAuthStatusOnStart();
+      ref.read(authStateProvider.notifier).refresh();
     });
+  }
+
+  /// 🔍 앱 시작 시 인증 상태 디버깅
+  Future<void> _debugAuthStatusOnStart() async {
+    print('=== 🔍 AuthWrapper 시작 시 인증 상태 디버깅 ===');
+    await AuthService.checkFullAuthStatus();
+
+    // 추가로 AuthStateProvider 상태도 확인
+    final currentState = ref.read(authStateProvider);
+    print('--- AuthStateProvider 현재 상태 ---');
+    print('status: ${currentState.status}');
+    print('userType: ${currentState.userType}');
+    print('================================');
   }
 
   @override
@@ -40,41 +52,11 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 앱이 재활성화될 때 인증 상태 새로고침
+    // 앱이 포그라운드로 돌아올 때 인증 상태 새로고침
     if (state == AppLifecycleState.resumed) {
-      _refreshAuthStatus();
+      print('🔄 앱이 포그라운드로 돌아옴 - 인증 상태 새로고침');
+      ref.read(authStateProvider.notifier).refresh();
     }
-  }
-
-  // 🔥 인증 상태 새로고침 (자동 로그인 포함)
-  void _refreshAuthStatus() async {
-    print('=== AuthWrapper 인증 상태 새로고침 ===');
-
-    // 🔍 디버깅: 저장된 데이터 확인
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final accessToken = prefs.getString('access_token');
-      final userStatus = prefs.getString('user_status');
-      final userType = prefs.getString('user_type');
-
-      print('현재 저장된 데이터:');
-      print('- Access Token: ${accessToken != null ? '${accessToken.substring(0, 20)}...' : 'null'}');
-      print('- User Status: $userStatus');
-      print('- User Type: $userType');
-
-      // 🔧 사용자 상태가 PENDING이면 VERIFIED로 업데이트
-      if (accessToken != null && userStatus == 'PENDING') {
-        print('🔧 PENDING 상태 감지 - 회원가입 완료된 사용자로 간주하여 VERIFIED로 업데이트');
-        await prefs.setString('user_status', 'VERIFIED');
-        print('✅ 사용자 상태를 VERIFIED로 업데이트 완료');
-      }
-
-    } catch (e) {
-      print('❌ 데이터 확인 및 업데이트 실패: $e');
-    }
-
-    // AuthStateProvider 새로고침
-    ref.read(authStateProvider.notifier).refresh();
   }
 
   @override
@@ -84,58 +66,46 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper>
     print('=== AuthWrapper 빌드 ===');
     print('현재 인증 상태: ${authState.status}');
     print('사용자 타입: ${authState.userType}');
-    print('사용자 상태: ${authState.userStatus}');
 
     return switch (authState.status) {
-    // 초기 상태 및 로딩 중
-      AuthStatus.initial || AuthStatus.loading => const _LoadingScreen(),
+    // 🔄 초기 상태 및 로딩 중
+      AuthStatus.initial || AuthStatus.loading => _LoadingScreen(
+        onDebugPressed: _debugAuthStatusOnStart, // 디버깅 버튼 추가
+      ),
 
-// 로그인 안됨 - 로그인 화면 표시
+    // 🚫 로그인 안됨 - 로그인 화면
       AuthStatus.unauthenticated => JejuLoginScreen(
-        onLoginSuccess: (UserType userType) async {
-          // 🔥 OAuth 성공 후 즉시 상태 업데이트
-          print('=== AuthWrapper에서 로그인 성공 콜백 ===');
-          print('UserType: $userType');
-
-          // 🔥 STAFF/OWNER 타입이면 즉시 authenticated 상태로 강제 설정
-          if (userType == UserType.worker || userType == UserType.employer) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('user_status', 'ACTIVE');
-
-            // AuthStateProvider 강제 업데이트
-            ref.read(authStateProvider.notifier).setAuthenticated(userType);
-
-            print('✅ 강제로 authenticated 상태로 설정 완료');
-          }
+        onLoginSuccess: (UserType userType) {
+          print('✅ OAuth 로그인 성공: $userType');
+          // AuthStateNotifier에서 자동으로 상태 업데이트됨
         },
       ),
-    // 회원가입 필요 - 정보 입력 화면 표시
-      AuthStatus.needsSignup => _buildSignupScreen(context, ref, authState.userType),
 
-    // 🔥 완전히 로그인됨 - 메인 화면 표시 (자동 로그인 포함)
-      AuthStatus.authenticated => _buildMainScreen(context, ref, authState.userType),
+    // ✏️ 회원가입 필요 - 정보 입력 화면
+      AuthStatus.needsSignup => _buildSignupScreen(authState.userType),
+
+    // ✅ 완전히 로그인됨 - 메인 화면 (자동 로그인 포함)
+      AuthStatus.authenticated => _buildMainScreen(authState.userType),
     };
   }
 
   /// 회원가입 화면 빌드
-  Widget _buildSignupScreen(BuildContext context, WidgetRef ref, UserType? userType) {
+  Widget _buildSignupScreen(UserType? userType) {
+    print('🔍 회원가입 화면 빌드 - userType: $userType');
+
     if (userType == null) {
+      print('❌ UserType이 null - 로그인 화면으로 이동');
       // UserType이 없으면 로그인 화면으로
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(authStateProvider.notifier).logout();
       });
-      return JejuLoginScreen(
-        onLoginSuccess: (UserType userType) {
-          print('재로그인 성공: $userType');
-        },
-      );
+      return _LoadingScreen(onDebugPressed: _debugAuthStatusOnStart);
     }
 
     if (userType == UserType.worker) {
       return WorkerInfoInputScreen(
         onComplete: (completedUserType) async {
           print('=== 구직자 회원가입 완료 ===');
-          // 🔥 회원가입 완료 후 자동 로그인 활성화
           await ref.read(authStateProvider.notifier).updateAfterSignup();
         },
       );
@@ -143,48 +113,38 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper>
       return EmployerInfoInputScreen(
         onComplete: (completedUserType) async {
           print('=== 사업자 회원가입 완료 ===');
-          // 🔥 회원가입 완료 후 자동 로그인 활성화
           await ref.read(authStateProvider.notifier).updateAfterSignup();
         },
       );
     }
   }
 
-  /// 🔥 메인 화면 빌드 (자동 로그인으로 진입 가능)
-  Widget _buildMainScreen(BuildContext context, WidgetRef ref, UserType? userType) {
+  /// 메인 화면 빌드
+  Widget _buildMainScreen(UserType? userType) {
+    print('🔍 메인 화면 빌드 - userType: $userType');
+
     if (userType == null) {
+      print('❌ UserType이 null - 로그인 화면으로 이동');
       // UserType이 없으면 로그인 화면으로
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(authStateProvider.notifier).logout();
       });
-      return JejuLoginScreen(
-        onLoginSuccess: (UserType userType) {
-          print('재로그인 성공: $userType');
-        },
-      );
+      return _LoadingScreen(onDebugPressed: _debugAuthStatusOnStart);
     }
 
-    // 🔥 자동 로그인으로 메인 화면 진입 로그
-    final authState = ref.watch(authStateProvider);
-    final canAutoLogin = ref.watch(canAutoLoginProvider);
-
-    if (canAutoLogin) {
-      print('✅ 자동 로그인으로 메인 화면 진입');
-      print('사용자 타입: $userType');
-      print('사용자 상태: ${authState.userStatus}');
-    }
+    print('✅ 메인 화면 진입 - 사용자 타입: $userType');
 
     if (userType == UserType.worker) {
       return WorkerMainScreen(
         onLogout: () async {
-          print('=== 구직자 메인에서 로그아웃 ===');
+          print('=== 구직자 로그아웃 ===');
           await ref.read(authStateProvider.notifier).logout();
         },
       );
     } else {
       return EmployerMainWrapper(
         onLogout: () async {
-          print('=== 사업자 메인에서 로그아웃 ===');
+          print('=== 사업자 로그아웃 ===');
           await ref.read(authStateProvider.notifier).logout();
         },
       );
@@ -192,9 +152,11 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper>
   }
 }
 
-/// 로딩 화면 (자동 로그인 체크 중 표시)
+/// 🔍 디버깅 기능이 포함된 로딩 화면
 class _LoadingScreen extends StatelessWidget {
-  const _LoadingScreen();
+  final VoidCallback? onDebugPressed;
+
+  const _LoadingScreen({this.onDebugPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +166,7 @@ class _LoadingScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 로고 또는 앱 아이콘
+            // 앱 로고
             Container(
               width: 80,
               height: 80,
@@ -246,11 +208,72 @@ class _LoadingScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              '로그인 상태 확인 중...', // 🔥 메시지 변경
+              '로그인 상태 확인 중...',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
               ),
+            ),
+
+            // 🔍 디버깅 버튼 추가 (개발 중에만)
+            const SizedBox(height: 40),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: onDebugPressed,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('🔍 인증상태 확인'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    await AuthService.forceSetActiveStatus();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('🔧 ACTIVE 설정'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () async {
+                    // 임시 토큰 및 PENDING 상태 생성
+                    await AuthService.saveAccessToken('test_token_12345');
+                    await AuthService.saveUserStatus('PENDING');
+                    await AuthService.saveUserType('STAFF');
+                    print('✅ 임시 PENDING 사용자 생성 완료');
+                    if (onDebugPressed != null) onDebugPressed!();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('🔧 PENDING 생성'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    await AuthService.clearAllUserData();
+                    print('✅ 모든 데이터 삭제 완료');
+                    if (onDebugPressed != null) onDebugPressed!();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('🗑️ 데이터 삭제'),
+                ),
+              ],
             ),
           ],
         ),

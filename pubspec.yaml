@@ -2,7 +2,7 @@ name: ilhayoung_app
 description: "제주 일자리 플랫폼 - 일하영"
 publish_to: 'none'
 
-version: 888.0.1+26
+version: 888.0.1+27
 
 environment:
   sdk: ^3.8.1
