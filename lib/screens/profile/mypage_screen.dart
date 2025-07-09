@@ -1,4 +1,4 @@
-// lib/screens/profile/mypage_screen.dart - API 연동된 마이페이지
+// lib/screens/profile/mypage_screen.dart - 사업자 정보 기능 추가된 마이페이지
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,8 +6,10 @@ import '../../core/enums/user_type.dart';
 import '../../components/common/unified_app_header.dart';
 import '../../services/auth_service.dart';
 import '../../services/account_deletion_service.dart';
-import '../../services/user_info_service.dart'; // 사용자 정보 API 서비스
+import '../../services/user_info_service.dart';
+import '../../services/manager_info_service.dart'; // 사업자 정보 API 서비스
 import 'user_info_screen.dart';
+import 'manager_info_screen.dart'; // 사업자 정보 화면
 
 class MyPageScreen extends StatefulWidget {
   final UserType userType;
@@ -38,7 +40,7 @@ class _MyPageScreenState extends State<MyPageScreen>
   void initState() {
     super.initState();
     _setupAnimations();
-    _loadUserInfo(); // API에서 사용자 정보 로드
+    _loadUserInfo();
   }
 
   void _setupAnimations() {
@@ -56,7 +58,7 @@ class _MyPageScreenState extends State<MyPageScreen>
     ));
   }
 
-  // 🔥 API에서 사용자 정보 로드
+  /// 사용자 정보 로드 (공통 API 사용)
   Future<void> _loadUserInfo() async {
     try {
       setState(() {
@@ -66,6 +68,7 @@ class _MyPageScreenState extends State<MyPageScreen>
 
       print('=== MyPageScreen 사용자 정보 로드 시작 ===');
 
+      // 사업자/구직자 구분 없이 공통 API 사용
       final userInfo = await UserInfoService.getUserInfo();
 
       if (userInfo != null) {
@@ -75,8 +78,6 @@ class _MyPageScreenState extends State<MyPageScreen>
         });
 
         print('✅ 사용자 정보 로드 성공: ${userInfo['name']}');
-
-        // 애니메이션 시작
         _animationController.forward();
       } else {
         setState(() {
@@ -113,7 +114,6 @@ class _MyPageScreenState extends State<MyPageScreen>
         subtitle: isEmployer ? '사업자 정보 관리' : '내 정보 관리',
         emoji: isEmployer ? '🏢' : '👤',
         actions: [
-          // 새로고침 버튼
           IconButton(
             icon: Icon(Icons.refresh, color: primaryColor),
             onPressed: _loadUserInfo,
@@ -195,7 +195,7 @@ class _MyPageScreenState extends State<MyPageScreen>
               _buildSettingsSection(primaryColor),
               const SizedBox(height: 32),
               _buildLogoutButton(primaryColor),
-              const SizedBox(height: 100), // 네비게이션 바 여백
+              const SizedBox(height: 100),
             ],
           ),
         ),
@@ -204,18 +204,17 @@ class _MyPageScreenState extends State<MyPageScreen>
   }
 
   Widget _buildProfileCard(Color primaryColor, bool isEmployer) {
-    // API에서 가져온 실제 데이터 사용
     final String userName = _userInfo?['name'] ?? '사용자';
     final String userEmail = _userInfo?['email'] ?? '';
-    final String userType = _userInfo?['userType'] ?? '';
     final String businessName = _userInfo?['businessName'] ?? '';
+    final String businessAddress = _userInfo?['businessAddress'] ?? '';
 
     String displayName = userName;
     String displaySubtitle = '';
 
     if (isEmployer) {
       displayName = businessName.isNotEmpty ? businessName : userName;
-      displaySubtitle = '사업자';
+      displaySubtitle = businessAddress.isNotEmpty ? businessAddress : '사업자';
     } else {
       displayName = '$userName님';
       displaySubtitle = '구직자';
@@ -229,8 +228,8 @@ class _MyPageScreenState extends State<MyPageScreen>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isEmployer
-              ? [const Color(0xFF2D3748), const Color(0xFF4A5568)] // 사업자용
-              : [const Color(0xFF00A3A3), const Color(0xFF00B8B8)], // 구직자용
+              ? [const Color(0xFF2D3748), const Color(0xFF4A5568)]
+              : [const Color(0xFF00A3A3), const Color(0xFF00B8B8)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -278,6 +277,7 @@ class _MyPageScreenState extends State<MyPageScreen>
               fontSize: 14,
               color: Colors.white.withOpacity(0.9),
             ),
+            textAlign: TextAlign.center,
           ),
 
           if (userEmail.isNotEmpty) ...[
@@ -300,7 +300,7 @@ class _MyPageScreenState extends State<MyPageScreen>
 
           const SizedBox(height: 20),
 
-          // TODO: 통계 데이터도 API에서 가져오도록 수정 예정
+          // 통계 정보
           if (isEmployer) ...[
             Row(
               children: [
@@ -412,11 +412,11 @@ class _MyPageScreenState extends State<MyPageScreen>
                   () => _showFeatureDialog('급여 관리'),
             ),
             _buildMenuItem(
-              '사업장 정보',
-              '사업장 정보를 수정하세요',
+              '사업자 정보',
+              '사업자 정보를 확인하고 수정하세요',
               Icons.store_outlined,
               primaryColor,
-                  () => _showFeatureDialog('사업장 정보'),
+              _showManagerInfo, // 🔧 사업자 정보 조회 함수 연결
             ),
           ] else ...[
             _buildMenuItem(
@@ -445,7 +445,7 @@ class _MyPageScreenState extends State<MyPageScreen>
               '개인 정보를 확인하고 수정하세요',
               Icons.person_outline,
               primaryColor,
-              _showUserInfo, // 🔧 실제 사용자 정보 조회 함수 연결
+              _showUserInfo, // 🔧 구직자 정보 조회 함수 연결
             ),
           ],
         ],
@@ -568,8 +568,8 @@ class _MyPageScreenState extends State<MyPageScreen>
             '회원 탈퇴',
             '계정을 영구적으로 삭제합니다',
             Icons.delete_forever_outlined,
-            Colors.red[400]!, // 빨간색으로 구분
-            _showAccountDeletionDialog, // 회원 탈퇴 다이얼로그
+            Colors.red[400]!,
+            _showAccountDeletionDialog,
           ),
           _buildMenuItem(
             '고객센터',
@@ -657,12 +657,39 @@ class _MyPageScreenState extends State<MyPageScreen>
     );
   }
 
-  // 🎯 핵심 기능: 사용자 정보 조회
+  // 🎯 핵심 기능: 사업자 정보 조회
+  void _showManagerInfo() async {
+    try {
+      HapticFeedback.lightImpact();
+
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerInfoScreen(),
+        ),
+      );
+
+      // 사업자 정보 수정 후 돌아왔다면 마이페이지 새로고침
+      if (result == true) {
+        _loadUserInfo();
+      }
+    } catch (e) {
+      print('사업자 정보 화면 이동 오류: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사업자 정보를 불러오는데 실패했습니다'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // 🎯 핵심 기능: 구직자 정보 조회
   void _showUserInfo() async {
     try {
       HapticFeedback.lightImpact();
 
-      // 사용자 정보 화면으로 이동 (API에서 가져온 정보와 함께)
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
@@ -678,7 +705,6 @@ class _MyPageScreenState extends State<MyPageScreen>
       }
     } catch (e) {
       print('사용자 정보 화면 이동 오류: $e');
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('개인정보를 불러오는데 실패했습니다'),
@@ -705,7 +731,6 @@ class _MyPageScreenState extends State<MyPageScreen>
     );
   }
 
-  // 🚨 회원 탈퇴 다이얼로그
   void _showAccountDeletionDialog() {
     showDialog(
       context: context,
@@ -784,9 +809,7 @@ class _MyPageScreenState extends State<MyPageScreen>
     );
   }
 
-  // 🚨 회원 탈퇴 처리
   void _handleAccountDeletion() async {
-    // 로딩 다이얼로그 표시
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -805,14 +828,11 @@ class _MyPageScreenState extends State<MyPageScreen>
     );
 
     try {
-      // 회원 탈퇴 API 호출
       final result = await AccountDeletionService.deleteAccount();
 
-      // 로딩 다이얼로그 닫기
       if (mounted) Navigator.pop(context);
 
       if (result['success']) {
-        // 성공: 성공 메시지 표시 후 로그인 화면으로 이동
         if (mounted) {
           showDialog(
             context: context,
@@ -830,7 +850,6 @@ class _MyPageScreenState extends State<MyPageScreen>
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    // AuthWrapper로 상태 전달하여 로그인 화면으로 이동
                     if (widget.onLogout != null) {
                       widget.onLogout!();
                     }
@@ -842,7 +861,6 @@ class _MyPageScreenState extends State<MyPageScreen>
           );
         }
       } else {
-        // 실패: 에러 메시지 표시
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -855,10 +873,7 @@ class _MyPageScreenState extends State<MyPageScreen>
       }
     } catch (e) {
       print('회원 탈퇴 처리 오류: $e');
-
-      // 로딩 다이얼로그 닫기
       if (mounted) Navigator.pop(context);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -872,7 +887,6 @@ class _MyPageScreenState extends State<MyPageScreen>
   }
 
   void _handleLogout() async {
-    // 로그아웃 확인 다이얼로그
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -900,20 +914,15 @@ class _MyPageScreenState extends State<MyPageScreen>
       });
 
       try {
-        // AuthService를 통한 로그아웃 처리
         await AuthService.logout();
-
-        // 콜백 함수 호출 (AuthWrapper로 상태 전달)
         if (widget.onLogout != null) {
           widget.onLogout!();
         }
       } catch (e) {
         print('로그아웃 오류: $e');
-
         setState(() {
           _isLoggingOut = false;
         });
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
