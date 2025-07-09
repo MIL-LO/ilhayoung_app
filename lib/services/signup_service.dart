@@ -1,335 +1,260 @@
-// lib/services/signup_service.dart
+// lib/services/signup_service.dart - 업데이트된 버전
 
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../config/app_config.dart';
+import '../core/constants/app_constants.dart';
+import 'auth_service.dart';
 
 class SignupService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static const String _baseUrl = AppConstants.baseUrl;
 
-  /// STAFF 회원가입 완료
+  /// 구직자(STAFF) 회원가입 완료
   static Future<Map<String, dynamic>> completeStaffSignup({
-    required String birthDate, // "1998-07-01" 형식
-    required String phone,     // "010-1234-5678" 형식
-    required String address,   // "제주시 애월읍"
-    required String experience, // "한식 주방 홀 아르바이트 3개월"
-  }) async {
-    print('=== STAFF 회원가입 완료 시작 ===');
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final tempToken = prefs.getString('access_token'); // OAuth에서 받은 임시 토큰
-
-      // 🔧 안전한 토큰 로깅 (RangeError 방지)
-      if (tempToken != null && tempToken.isNotEmpty) {
-        final tokenPreview = tempToken.length > 20
-            ? '${tempToken.substring(0, 20)}...'
-            : '$tempToken...';
-        print('임시 토큰: $tokenPreview');
-      } else {
-        print('❌ 임시 토큰이 없습니다');
-        return {'success': false, 'error': '임시 토큰이 없습니다. 다시 로그인해주세요.'};
-      }
-
-      // 🔧 입력 데이터 검증 및 정리
-      final cleanedData = _validateAndCleanData(
-        birthDate: birthDate,
-        phone: phone,
-        address: address,
-        experience: experience,
-      );
-
-      if (!cleanedData['isValid']) {
-        print('❌ 입력 데이터 검증 실패: ${cleanedData['error']}');
-        return {'success': false, 'error': cleanedData['error']};
-      }
-
-      // 백엔드 API 스펙에 맞는 요청 데이터
-      final requestData = {
-        'birthDate': cleanedData['birthDate'],
-        'phone': cleanedData['phone'],
-        'address': cleanedData['address'],
-        'experience': cleanedData['experience'],
-      };
-
-      print('STAFF 회원가입 요청 데이터: ${jsonEncode(requestData)}');
-
-      // 실제 백엔드 API 엔드포인트
-      final url = '$baseUrl/users/staff/signup';
-      print('STAFF 회원가입 API URL: $url');
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $tempToken',
-        },
-        body: jsonEncode(requestData),
-      ).timeout(const Duration(seconds: 30)); // 🔧 타임아웃 추가
-
-      print('STAFF 회원가입 응답 상태: ${response.statusCode}');
-      print('STAFF 회원가입 응답 헤더: ${response.headers}');
-      print('STAFF 회원가입 응답 본문: ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        print('✅ STAFF 회원가입 성공');
-
-        // 새로운 토큰이 있다면 저장
-        await _saveTokensFromResponse(data, prefs);
-
-        // 사용자 상태 업데이트 (PENDING -> ACTIVE)
-        await _updateUserStatus(data, prefs);
-
-        return {
-          'success': true,
-          'data': data,
-          'message': 'STAFF 회원가입이 완료되었습니다! 🎉'
-        };
-
-      } else {
-        print('❌ STAFF 회원가입 실패: ${response.statusCode}');
-        print('❌ 오류 내용: ${response.body}');
-
-        return _handleErrorResponse(response);
-      }
-
-    } catch (e) {
-      print('❌ STAFF 회원가입 처리 중 오류: $e');
-      return {
-        'success': false,
-        'error': '회원가입 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
-      };
-    }
-  }
-
-  /// 🔧 입력 데이터 검증 및 정리
-  static Map<String, dynamic> _validateAndCleanData({
     required String birthDate,
     required String phone,
     required String address,
     required String experience,
-  }) {
+  }) async {
     try {
-      // 생년월일 검증
-      if (birthDate.trim().isEmpty) {
-        return {'isValid': false, 'error': '생년월일을 입력해주세요.'};
-      }
+      final uri = Uri.parse('$_baseUrl/api/v1/users/staff/signup');
+      final headers = await _getHeaders();
 
-      // 날짜 형식 검증 (YYYY-MM-DD)
-      final dateRegex = RegExp(r'^\d{4}-\d{2}-\d{2}$');
-      if (!dateRegex.hasMatch(birthDate.trim())) {
-        return {'isValid': false, 'error': '생년월일 형식이 올바르지 않습니다.'};
-      }
-
-      // 전화번호 검증
-      if (phone.trim().isEmpty) {
-        return {'isValid': false, 'error': '전화번호를 입력해주세요.'};
-      }
-
-      // 주소 검증
-      if (address.trim().isEmpty) {
-        return {'isValid': false, 'error': '주소를 입력해주세요.'};
-      }
-      if (address.trim().length < 5) {
-        return {'isValid': false, 'error': '주소를 더 자세히 입력해주세요.'};
-      }
-
-      // 경험 검증 (빈 값이면 기본값 설정)
-      String cleanedExperience = experience.trim();
-      if (cleanedExperience.isEmpty) {
-        cleanedExperience = '경험 없음';
-      }
-
-      return {
-        'isValid': true,
-        'birthDate': birthDate.trim(),
-        'phone': phone.trim(),
-        'address': address.trim(),
-        'experience': cleanedExperience,
+      final requestBody = {
+        'birthDate': birthDate,
+        'phone': phone,
+        'address': address,
+        'experience': experience,
       };
-    } catch (e) {
-      print('❌ 데이터 검증 중 오류: $e');
-      return {'isValid': false, 'error': '입력 데이터 처리 중 오류가 발생했습니다.'};
-    }
-  }
 
-  /// 🔧 응답에서 토큰 저장
-  static Future<void> _saveTokensFromResponse(Map<String, dynamic> data, SharedPreferences prefs) async {
-    try {
-      // 새로운 액세스 토큰 저장
-      if (data['access_token'] != null || data['accessToken'] != null) {
-        final newToken = data['access_token'] ?? data['accessToken'];
-        if (newToken != null && newToken.toString().isNotEmpty) {
-          await prefs.setString('access_token', newToken.toString());
-          print('✅ 새로운 액세스 토큰 저장됨');
+      print('=== 구직자 회원가입 API 호출 ===');
+      print('URL: $uri');
+      print('Request Body: $requestBody');
+
+      final response = await http.post(
+        uri,
+        headers: headers,
+        body: json.encode(requestBody),
+      );
+
+      print('응답 상태 코드: ${response.statusCode}');
+      print('응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+
+        if (jsonResponse['code'] == 'SUCCESS') {
+          return {
+            'success': true,
+            'message': jsonResponse['message'] ?? '구직자 회원가입이 완료되었습니다.',
+            'data': jsonResponse['data'],
+          };
+        } else {
+          return {
+            'success': false,
+            'error': jsonResponse['message'] ?? '회원가입에 실패했습니다.',
+          };
         }
-      }
-
-      // 리프레시 토큰 저장
-      if (data['refresh_token'] != null || data['refreshToken'] != null) {
-        final refreshToken = data['refresh_token'] ?? data['refreshToken'];
-        if (refreshToken != null && refreshToken.toString().isNotEmpty) {
-          await prefs.setString('refresh_token', refreshToken.toString());
-          print('✅ 리프레시 토큰 저장됨');
-        }
-      }
-    } catch (e) {
-      print('❌ 토큰 저장 중 오류: $e');
-    }
-  }
-
-  /// 🔧 사용자 상태 업데이트
-  static Future<void> _updateUserStatus(Map<String, dynamic> data, SharedPreferences prefs) async {
-    try {
-      print('=== 🔧 사용자 상태 업데이트 시작 ===');
-      print('응답 데이터: $data');
-
-      // 서버 응답에서 상태 확인
-      String newStatus = 'ACTIVE'; // 기본값을 ACTIVE로 설정
-
-      if (data['status'] != null && data['status'].toString().isNotEmpty) {
-        newStatus = data['status'].toString();
-        print('서버에서 받은 상태: $newStatus');
       } else {
-        print('서버 응답에 status 없음 - ACTIVE로 기본 설정');
+        return {
+          'success': false,
+          'error': '서버 오류가 발생했습니다. (${response.statusCode})',
+        };
       }
-
-      // 🎯 중요: 무조건 ACTIVE로 설정 (회원가입 성공했으니까)
-      await prefs.setString('user_status', 'ACTIVE');
-      print('✅ 로컬 상태를 ACTIVE로 업데이트');
-
-      // 추가 사용자 정보 저장
-      if (data['userId'] != null) {
-        await prefs.setString('user_id', data['userId'].toString());
-        print('✅ 사용자 ID 저장: ${data['userId']}');
-      }
-
-      if (data['id'] != null) {
-        await prefs.setString('user_id', data['id'].toString());
-        print('✅ 사용자 ID 저장 (id 필드): ${data['id']}');
-      }
-
-      // 상태 확인
-      final savedStatus = prefs.getString('user_status');
-      print('저장 후 확인된 상태: $savedStatus');
-
-      if (savedStatus != 'ACTIVE') {
-        print('❌ 상태 저장 실패 - 재시도');
-        await prefs.setString('user_status', 'ACTIVE');
-        final retrySavedStatus = prefs.getString('user_status');
-        print('재시도 후 상태: $retrySavedStatus');
-      }
-
-      print('=== 🔧 사용자 상태 업데이트 완료 ===');
     } catch (e) {
-      print('❌ 사용자 상태 업데이트 중 오류: $e');
-
-      // 오류 발생해도 ACTIVE로 강제 설정
-      try {
-        await prefs.setString('user_status', 'ACTIVE');
-        print('🔧 오류 발생으로 인한 강제 ACTIVE 설정 완료');
-      } catch (forceError) {
-        print('❌ 강제 ACTIVE 설정도 실패: $forceError');
-      }
+      print('구직자 회원가입 API 오류: $e');
+      return {
+        'success': false,
+        'error': '네트워크 오류가 발생했습니다: $e',
+      };
     }
   }
 
-  /// 🔧 에러 응답 처리
-  static Map<String, dynamic> _handleErrorResponse(http.Response response) {
+  /// 사업자(MANAGER) 회원가입 완료
+  static Future<Map<String, dynamic>> completeManagerSignup({
+    required String birthDate,
+    required String phone,
+    required String businessAddress,
+    required String businessNumber,
+    required String businessType,
+  }) async {
     try {
-      String errorMessage;
+      final uri = Uri.parse('$_baseUrl/api/v1/users/manager/signup');
+      final headers = await _getHeaders();
 
-      switch (response.statusCode) {
-        case 400:
-          errorMessage = '입력 정보를 확인해주세요.';
-          break;
-        case 401:
-          errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
-          break;
-        case 409:
-          errorMessage = '이미 등록된 정보입니다.';
-          break;
-        case 500:
-          errorMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-          break;
-        default:
-          errorMessage = 'STAFF 회원가입에 실패했습니다.';
-      }
+      final requestBody = {
+        'birthDate': birthDate,
+        'phone': phone,
+        'businessAddress': businessAddress,
+        'businessNumber': businessNumber,
+        'businessType': businessType,
+      };
 
-      // 응답 본문에서 더 구체적인 오류 메시지 추출 시도
-      try {
-        final errorData = jsonDecode(response.body);
-        if (errorData['message'] != null && errorData['message'].toString().isNotEmpty) {
-          errorMessage = errorData['message'].toString();
-        } else if (errorData['error'] != null && errorData['error'].toString().isNotEmpty) {
-          errorMessage = errorData['error'].toString();
+      print('=== 사업자 회원가입 API 호출 ===');
+      print('URL: $uri');
+      print('Request Body: $requestBody');
+
+      final response = await http.post(
+        uri,
+        headers: headers,
+        body: json.encode(requestBody),
+      );
+
+      print('응답 상태 코드: ${response.statusCode}');
+      print('응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+
+        if (jsonResponse['code'] == 'SUCCESS') {
+          return {
+            'success': true,
+            'message': jsonResponse['message'] ?? '사업자 회원가입이 완료되었습니다.',
+            'data': jsonResponse['data'],
+          };
+        } else {
+          return {
+            'success': false,
+            'error': jsonResponse['message'] ?? '회원가입에 실패했습니다.',
+          };
         }
-      } catch (e) {
-        print('❌ 오류 메시지 파싱 실패: $e');
+      } else {
+        return {
+          'success': false,
+          'error': '서버 오류가 발생했습니다. (${response.statusCode})',
+        };
       }
-
-      return {
-        'success': false,
-        'error': errorMessage,
-        'statusCode': response.statusCode,
-        'details': response.body
-      };
     } catch (e) {
-      print('❌ 에러 응답 처리 중 오류: $e');
+      print('사업자 회원가입 API 오류: $e');
       return {
         'success': false,
-        'error': '회원가입에 실패했습니다.',
-        'details': response.body
+        'error': '네트워크 오류가 발생했습니다: $e',
       };
     }
   }
 
-  /// 현재 사용자 상태 확인
-  static Future<String?> getCurrentUserStatus() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('user_status');
-    } catch (e) {
-      print('❌ 사용자 상태 확인 오류: $e');
-      return null;
+  /// 공통 헤더 생성
+  static Future<Map<String, String>> _getHeaders() async {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    // 인증 토큰 추가
+    final token = await AuthService.getAccessToken();
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
     }
+
+    return headers;
   }
 
-  /// 로그인 상태 확인
-  static Future<bool> isLoggedIn() async {
+  /// 전화번호 포맷팅 (하이픈 제거)
+  static String formatPhoneNumber(String phone) {
+    return phone.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  /// 사업자등록번호 포맷팅 (하이픈 제거)
+  static String formatBusinessNumber(String businessNumber) {
+    return businessNumber.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  /// 생년월일 유효성 검사
+  static bool isValidBirthDate(String birthDate) {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final accessToken = prefs.getString('access_token');
-      final userStatus = prefs.getString('user_status');
+      final date = DateTime.parse(birthDate);
+      final now = DateTime.now();
+      final age = now.year - date.year;
 
-      // 토큰이 있고 상태가 ACTIVE인 경우만 로그인으로 간주
-      bool hasToken = accessToken != null && accessToken.isNotEmpty;
-      bool isActive = userStatus == 'ACTIVE' || userStatus == 'VERIFIED';
-
-      return hasToken && isActive;
+      // 14세 이상, 100세 이하 확인
+      return age >= 14 && age <= 100;
     } catch (e) {
-      print('❌ 로그인 상태 확인 오류: $e');
       return false;
     }
   }
 
-  /// 회원가입이 필요한지 확인
-  static Future<bool> needsSignup() async {
+  /// 전화번호 유효성 검사
+  static bool isValidPhoneNumber(String phone) {
+    final cleanPhone = formatPhoneNumber(phone);
+
+    // 한국 휴대폰 번호 패턴 (010, 011, 016, 017, 018, 019)
+    final phoneRegex = RegExp(r'^01[0-9]{8,9}$');
+    return phoneRegex.hasMatch(cleanPhone);
+  }
+
+  /// 사업자등록번호 API 검증
+  static Future<Map<String, dynamic>> verifyBusinessNumber(String businessNumber) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final accessToken = prefs.getString('access_token');
-      final userStatus = prefs.getString('user_status');
+      final uri = Uri.parse('$_baseUrl/api/v1/users/verify-business');
+      final headers = await _getHeaders();
 
-      // 토큰은 있지만 상태가 PENDING인 경우 회원가입 필요
-      bool hasToken = accessToken != null && accessToken.isNotEmpty;
-      bool isPending = userStatus == 'PENDING';
+      final cleanNumber = formatBusinessNumber(businessNumber);
 
-      return hasToken && isPending;
+      final requestBody = {
+        'businessNumber': cleanNumber,
+      };
+
+      print('=== 사업자등록번호 검증 API 호출 ===');
+      print('URL: $uri');
+      print('Request Body: $requestBody');
+
+      final response = await http.post(
+        uri,
+        headers: headers,
+        body: json.encode(requestBody),
+      );
+
+      print('응답 상태 코드: ${response.statusCode}');
+      print('응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+
+        if (jsonResponse['code'] == 'SUCCESS') {
+          return {
+            'success': true,
+            'message': jsonResponse['message'] ?? '유효한 사업자등록번호입니다.',
+            'data': jsonResponse['data'],
+          };
+        } else {
+          return {
+            'success': false,
+            'error': jsonResponse['message'] ?? '유효하지 않은 사업자등록번호입니다.',
+          };
+        }
+      } else {
+        return {
+          'success': false,
+          'error': '서버 오류가 발생했습니다. (${response.statusCode})',
+        };
+      }
     } catch (e) {
-      print('❌ 회원가입 필요 확인 오류: $e');
-      return false;
+      print('사업자등록번호 검증 API 오류: $e');
+      return {
+        'success': false,
+        'error': '네트워크 오류가 발생했습니다: $e',
+      };
     }
+  }
+
+  /// 사업자등록번호 로컬 유효성 검사 (체크섬 검증)
+  static bool isValidBusinessNumberFormat(String businessNumber) {
+    final cleanNumber = formatBusinessNumber(businessNumber);
+
+    // 사업자등록번호는 10자리
+    if (cleanNumber.length != 10) return false;
+
+    // 체크섬 검증 (간단한 버전)
+    final digits = cleanNumber.split('').map(int.parse).toList();
+    final checkArray = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+
+    int sum = 0;
+    for (int i = 0; i < 9; i++) {
+      sum += digits[i] * checkArray[i];
+    }
+
+    sum += ((digits[8] * 5) ~/ 10);
+    int checkDigit = (10 - (sum % 10)) % 10;
+
+    return checkDigit == digits[9];
   }
 }

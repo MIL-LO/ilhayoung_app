@@ -13,35 +13,29 @@ class JobApiService {
   static Future<Map<String, dynamic>> getJobPostings({
     int page = 0,
     int size = 20,
+    String? keyword,
     String? location,
-    String? category,
-    String? search,
-    String? salaryMin,
-    String? salaryMax,
     String? workPeriod,
-    List<String>? workDays,
-    String? status = 'ACTIVE',
+    int? minSalary,
+    int? maxSalary,
+    String? jobType,
+    String? sortBy = 'createdAt',
+    String? sortDirection = 'desc',
   }) async {
     try {
       // 쿼리 파라미터 구성
       final queryParams = <String, String>{
         'page': page.toString(),
         'size': size.toString(),
-        if (status != null) 'status': status,
-        if (location != null && location != '전체' && location != '제주 전체') 'workLocation': location,
-        if (category != null && category != '전체') 'category': category,
-        if (search != null && search.isNotEmpty) 'search': search,
-        if (salaryMin != null) 'salaryMin': salaryMin,
-        if (salaryMax != null) 'salaryMax': salaryMax,
+        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+        if (location != null && location != '전체' && location != '제주 전체') 'location': location,
         if (workPeriod != null) 'workPeriod': workPeriod,
+        if (minSalary != null) 'minSalary': minSalary.toString(),
+        if (maxSalary != null) 'maxSalary': maxSalary.toString(),
+        if (jobType != null && jobType != '전체') 'jobType': jobType,
+        if (sortBy != null) 'sortBy': sortBy,
+        if (sortDirection != null) 'sortDirection': sortDirection,
       };
-
-      // workDays 파라미터 추가
-      if (workDays != null && workDays.isNotEmpty) {
-        for (int i = 0; i < workDays.length; i++) {
-          queryParams['workDays[$i]'] = workDays[i];
-        }
-      }
 
       // URI 생성
       final uri = Uri.parse('$_baseUrl/api/v1/recruits').replace(

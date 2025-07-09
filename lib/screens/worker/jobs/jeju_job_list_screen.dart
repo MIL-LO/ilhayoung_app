@@ -106,10 +106,11 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
       final result = await JobApiService.getJobPostings(
         page: _currentPage,
         size: 20,
+        keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
         location: _selectedLocation,
-        category: _selectedCategory,
-        search: _searchQuery.isNotEmpty ? _searchQuery : null,
-        status: 'ACTIVE',
+        jobType: _selectedCategory,
+        sortBy: 'createdAt',
+        sortDirection: 'desc',
       );
 
       if (result['success']) {
