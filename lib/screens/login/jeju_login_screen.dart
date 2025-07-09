@@ -1,7 +1,8 @@
-// lib/screens/login/jeju_login_screen.dart - 정리된 로그인 화면
+// lib/screens/login/jeju_login_screen.dart - validate API 활용 버전
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../core/enums/user_type.dart';
 import '../../services/oauth_service.dart';
@@ -179,7 +180,7 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
     );
   }
 
-  // 🎯 카카오 로그인 처리 - 간소화된 버전
+  // 🎯 카카오 로그인 처리 - validate API 활용
   Future<void> _handleKakaoLogin() async {
     if (_isKakaoLoading) return;
 
@@ -199,17 +200,18 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
 
       if (mounted && result.success) {
         print('✅ 카카오 OAuth 성공');
+        print('OAuth 결과 데이터: ${result.toString()}');
 
-        // AuthStateProvider에 OAuth 결과 업데이트
-        await ref.read(authStateProvider.notifier).updateAfterOAuth(
-          accessToken: result.accessToken ?? '',
-          userType: userType,
-          email: _extractEmailFromToken(result.accessToken),
-        );
+        // 🎯 핵심: OAuth 결과를 즉시 SharedPreferences에 저장
+        await _saveOAuthResult(result, userType);
 
-        // 성공 콜백 호출
-        widget.onLoginSuccess(userType);
+        // 🎯 핵심: AuthStateProvider에서 validate API로 회원가입 여부 확인
+        await ref.read(authStateProvider.notifier).handleOAuthSuccess(userType);
+
+        // AuthWrapper가 자동으로 상태에 따라 화면을 전환할 것임
+        print('✅ 카카오 로그인 처리 완료');
       } else if (mounted) {
+        print('❌ 카카오 OAuth 실패: ${result.message}');
         _showErrorSnackBar('카카오 로그인에 실패했습니다: ${result.message}');
       }
     } catch (e) {
@@ -226,7 +228,7 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
     }
   }
 
-  // 🎯 구글 로그인 처리 - 간소화된 버전
+  // 🎯 구글 로그인 처리 - validate API 활용
   Future<void> _handleGoogleLogin() async {
     if (_isGoogleLoading) return;
 
@@ -246,17 +248,18 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
 
       if (mounted && result.success) {
         print('✅ 구글 OAuth 성공');
+        print('OAuth 결과 데이터: ${result.toString()}');
 
-        // AuthStateProvider에 OAuth 결과 업데이트
-        await ref.read(authStateProvider.notifier).updateAfterOAuth(
-          accessToken: result.accessToken ?? '',
-          userType: userType,
-          email: _extractEmailFromToken(result.accessToken),
-        );
+        // 🎯 핵심: OAuth 결과를 즉시 SharedPreferences에 저장
+        await _saveOAuthResult(result, userType);
 
-        // 성공 콜백 호출
-        widget.onLoginSuccess(userType);
+        // 🎯 핵심: AuthStateProvider에서 validate API로 회원가입 여부 확인
+        await ref.read(authStateProvider.notifier).handleOAuthSuccess(userType);
+
+        // AuthWrapper가 자동으로 상태에 따라 화면을 전환할 것임
+        print('✅ 구글 로그인 처리 완료');
       } else if (mounted) {
+        print('❌ 구글 OAuth 실패: ${result.message}');
         _showErrorSnackBar('구글 로그인에 실패했습니다: ${result.message}');
       }
     } catch (e) {
@@ -273,22 +276,134 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
     }
   }
 
+  /// 🎯 OAuth 결과를 SharedPreferences에 저장 (validate API 활용 준비)
+  Future<void> _saveOAuthResult(dynamic result, UserType userType) async {
+    try {
+      print('=== 🔐 OAuth 토큰 저장 시작 (validate API 활용 준비) ===');
+      final prefs = await SharedPreferences.getInstance();
+
+      // 1️⃣ 액세스 토큰 저장 (안전한 방법)
+      String? accessToken;
+
+      try {
+        // result 객체에서 토큰 추출 시도 (hasAccessToken으로 확인)
+        if (result.hasAccessToken && result.accessToken != null && result.accessToken.isNotEmpty) {
+          accessToken = result.accessToken;
+          print('✅ result.accessToken에서 토큰 발견: ${accessToken?.substring(0, 20)}...');
+        }
+      } catch (e) {
+        print('⚠️ result.accessToken 접근 실패: $e');
+      }
+
+      // result가 Map인 경우도 확인
+      if (accessToken == null && result is Map) {
+        if (result['access_token'] != null) {
+          accessToken = result['access_token'].toString();
+        } else if (result['accessToken'] != null) {
+          accessToken = result['accessToken'].toString();
+        }
+      }
+
+      if (accessToken != null && accessToken.isNotEmpty) {
+        await prefs.setString('access_token', accessToken);
+        print('✅ 액세스 토큰 저장 완료: ${accessToken.substring(0, 20)}...');
+      } else {
+        print('❌ OAuth 결과에서 토큰을 찾을 수 없음');
+        return; // 토큰이 없으면 저장 중단
+      }
+
+      // 2️⃣ 리프레시 토큰 저장 (안전한 방법)
+      try {
+        if (result.hasRefreshToken && result.refreshToken != null && result.refreshToken.isNotEmpty) {
+          await prefs.setString('refresh_token', result.refreshToken);
+          print('✅ 리프레시 토큰 저장 완료');
+        }
+      } catch (e) {
+        print('⚠️ result.refreshToken 접근 실패: $e');
+        // Map에서 확인
+        if (result is Map && result['refresh_token'] != null) {
+          await prefs.setString('refresh_token', result['refresh_token'].toString());
+          print('✅ 리프레시 토큰 저장 완료 (Map에서)');
+        }
+      }
+
+      // 3️⃣ 사용자 타입 저장
+      final userTypeString = userType == UserType.worker ? 'STAFF' : 'MANAGER';
+      await prefs.setString('user_type', userTypeString);
+      print('✅ 사용자 타입 저장: $userTypeString');
+
+      // 4️⃣ 이메일 저장 (토큰에서 추출)
+      final email = _extractEmailFromToken(accessToken);
+      if (email != null && email.isNotEmpty) {
+        await prefs.setString('user_email', email);
+        print('✅ 이메일 저장: $email');
+      } else {
+        print('⚠️ 토큰에서 이메일을 추출할 수 없음');
+      }
+
+      // 5️⃣ 🎯 핵심: 초기 상태를 PENDING으로 설정 (validate API가 실제 상태 결정)
+      // JWT의 status는 OAuth 성공을 의미할 뿐, 실제 회원가입 완료를 의미하지 않음
+      await prefs.setString('user_status', 'PENDING');
+      print('📋 초기 상태를 PENDING으로 설정 - validate API가 실제 상태 결정');
+
+      // 6️⃣ 저장 확인
+      final savedToken = prefs.getString('access_token');
+      final savedType = prefs.getString('user_type');
+      final savedEmail = prefs.getString('user_email');
+      final savedStatus = prefs.getString('user_status');
+
+      print('=== 저장 확인 ===');
+      print('저장된 토큰: ${savedToken != null ? "${savedToken.substring(0, 20)}..." : "없음"}');
+      print('저장된 타입: $savedType');
+      print('저장된 이메일: $savedEmail');
+      print('저장된 상태: $savedStatus');
+      print('=== OAuth 토큰 저장 완료 (validate API 검증 대기) ===');
+
+    } catch (e) {
+      print('❌ OAuth 결과 저장 실패: $e');
+      print('에러 스택 트레이스: ${StackTrace.current}');
+      // 오류가 발생해도 계속 진행 (토큰은 이미 저장됨)
+    }
+  }
+
   /// JWT 토큰에서 이메일 추출
   String? _extractEmailFromToken(String? token) {
-    if (token == null) return null;
+    if (token == null || token.isEmpty) return null;
 
     try {
+      // JWT 토큰 형식 확인 (3개 부분으로 구성)
       final parts = token.split('.');
-      if (parts.length != 3) return null;
+      if (parts.length != 3) {
+        print('❌ JWT 토큰 형식이 아님: ${parts.length}개 부분');
+        return null;
+      }
 
       final payload = parts[1];
       final normalized = base64Url.normalize(payload);
       final decoded = utf8.decode(base64Url.decode(normalized));
       final Map<String, dynamic> claims = json.decode(decoded);
 
-      return claims['email'] as String?;
+      print('🔍 토큰 페이로드 확인: ${claims.keys.toList()}');
+
+      // 다양한 이메일 필드명 확인
+      String? email;
+      if (claims['email'] != null) {
+        email = claims['email'] as String?;
+      } else if (claims['user_email'] != null) {
+        email = claims['user_email'] as String?;
+      } else if (claims['mail'] != null) {
+        email = claims['mail'] as String?;
+      }
+
+      if (email != null) {
+        print('✅ 토큰에서 이메일 추출 성공: $email');
+      } else {
+        print('❌ 토큰에서 이메일을 찾을 수 없음');
+      }
+
+      return email;
     } catch (e) {
-      print('토큰에서 이메일 추출 실패: $e');
+      print('❌ 토큰에서 이메일 추출 실패: $e');
       return null;
     }
   }
@@ -303,6 +418,7 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
+        duration: const Duration(seconds: 3),
       ),
     );
   }

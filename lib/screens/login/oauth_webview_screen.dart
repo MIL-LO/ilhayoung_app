@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:convert';
+import '../../config/app_config.dart'; // 🔥 AppConfig import 추가
 
 class OAuthWebViewScreen extends StatefulWidget {
   final String url;
@@ -66,8 +67,8 @@ class _OAuthWebViewScreenState extends State<OAuthWebViewScreen> {
     try {
       final uri = Uri.parse(url);
 
-      // 1️⃣ 호스트가 ilhayoung.com(백엔드)인 콜백만 처리
-      final isBackendHost = uri.host == 'ilhayoung.com';
+      // 🔥 API 서버 호스트로 변경 (api.ilhayoung.com)
+      final isBackendHost = uri.host == 'api.ilhayoung.com';
 
       // 2️⃣ 경로가 실제 콜백 패턴인지 확인 (쿼리스트링 제외)
       final isCallbackPath = uri.path.contains('/login/oauth2/code/') ||
@@ -210,8 +211,10 @@ class _OAuthWebViewScreenState extends State<OAuthWebViewScreen> {
   Future<Map<String, dynamic>?> _exchangeCodeForTokens(String code) async {
     try {
       print('토큰 교환 API 호출 시작');
+
+      // 🔥 AppConfig를 사용하여 API URL 구성
       final response = await http.post(
-        Uri.parse('https://ilhayoung.com/api/v1/oauth/token'),
+        Uri.parse('${AppConfig.apiBaseUrl}/oauth/token'),
         headers: {
           'Content-Type': 'application/json',
         },

@@ -9,7 +9,7 @@ class AppConfig {
     if (isDevelopment) {
       return 'http://localhost:5000'; // 로컬 개발 서버
     } else {
-      return 'https://ilhayoung.com'; // 운영 서버
+      return 'https://api.ilhayoung.com'; // 🔥 변경된 운영 서버
     }
   }
 

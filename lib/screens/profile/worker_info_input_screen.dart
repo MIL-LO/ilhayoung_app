@@ -1,15 +1,14 @@
-// lib/screens/profile/worker_info_input_screen.dart - 수정된 구직자 회원가입
+// lib/screens/profile/worker_info_input_screen.dart - 정리된 버전
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/enums/user_type.dart';
 import '../../components/common/unified_app_header.dart';
 import '../../services/signup_service.dart';
 import '../../services/auth_service.dart';
 import '../../providers/auth_state_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 추가
-
 
 class WorkerInfoInputScreen extends ConsumerStatefulWidget {
   final Function(UserType) onComplete;
@@ -60,16 +59,6 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
   void initState() {
     super.initState();
     _initAnimations();
-
-    // 🔍 회원가입 화면 진입 시 토큰 상태 확인
-    _debugTokenStatus();
-  }
-
-  /// 🔍 토큰 상태 디버깅
-  Future<void> _debugTokenStatus() async {
-    print('=== 🔍 회원가입 화면 토큰 상태 확인 ===');
-    await AuthService.checkFullAuthStatus();
-    print('================================');
   }
 
   void _initAnimations() {
@@ -123,11 +112,6 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
                     children: [
                       _buildWelcomeCard(),
                       const SizedBox(height: 24),
-
-                      // 🔍 디버깅 버튼 추가 (개발 중에만)
-                      _buildDebugButtons(),
-                      const SizedBox(height: 24),
-
                       _buildBirthDateField(),
                       const SizedBox(height: 20),
                       _buildPhoneField(),
@@ -204,12 +188,7 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
   /// 로그인 화면으로 돌아가기
   Future<void> _goBackToLogin() async {
     try {
-      print('🔙 로그인 화면으로 이동 - 로그아웃 처리');
-
-      // 로그아웃 처리
       await ref.read(authStateProvider.notifier).logout();
-
-      print('✅ 로그아웃 완료');
     } catch (e) {
       print('❌ 로그아웃 처리 오류: $e');
     }
@@ -354,11 +333,10 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
             if (value == null || value.trim().isEmpty) {
               return '연락처를 입력해주세요';
             }
-
-            // 전화번호 유효성 검사
             if (value.replaceAll('-', '').length < 10) {
               return '올바른 연락처를 입력해주세요';
             }
+            return null;
           },
         ),
       ],
@@ -603,11 +581,8 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
   }
 
   Future<void> _submitForm() async {
-    print('=== 🎯 STAFF 회원가입 폼 제출 시작 ===');
-
     // 폼 유효성 검사
     if (!_formKey.currentState!.validate()) {
-      print('❌ 폼 유효성 검사 실패');
       return;
     }
 
@@ -637,13 +612,7 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
         experience = '경험 없음';
       }
 
-      print('📝 STAFF 회원가입 데이터:');
-      print('- 생년월일: $birthDate');
-      print('- 연락처: ${_phoneController.text.trim()}');
-      print('- 주소: $address');
-      print('- 경험: $experience');
-
-      // SignupService.completeStaffSignup 호출
+      // API 호출
       final result = await SignupService.completeStaffSignup(
         birthDate: birthDate,
         phone: _phoneController.text.trim(),
@@ -653,21 +622,23 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
 
       if (mounted) {
         if (result['success']) {
-          print('✅ STAFF 회원가입 성공!');
+          // 🎯 회원가입 성공 후 로컬 상태를 즉시 ACTIVE로 업데이트
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_status', 'ACTIVE');
 
           _showSnackBar('회원가입이 완료되었습니다! 🎉', const Color(0xFF00A3A3));
 
-          // AuthStateProvider 상태 업데이트 후 콜백 실행
-          await Future.delayed(const Duration(milliseconds: 500));
+          // AuthStateProvider에게 회원가입 완료 알림
+          await ref.read(authStateProvider.notifier).updateAfterSignup();
+
+          // 콜백 실행
           widget.onComplete(UserType.worker);
 
         } else {
-          print('❌ STAFF 회원가입 실패: ${result['error']}');
           _showSnackBar(result['error'] ?? '회원가입에 실패했습니다', Colors.red);
         }
       }
     } catch (e) {
-      print('❌ STAFF 회원가입 처리 중 예외: $e');
       if (mounted) {
         _showSnackBar('회원가입 중 오류가 발생했습니다', Colors.red);
       }
@@ -693,141 +664,9 @@ class _WorkerInfoInputScreenState extends ConsumerState<WorkerInfoInputScreen>
       ),
     );
   }
-
-  /// 🔍 디버깅 버튼들
-  Widget _buildDebugButtons() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.yellow[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.orange, width: 2),
-          ),
-          child: Column(
-            children: [
-              const Text(
-                '🔍 개발자 디버깅 도구',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        print('=== 🔧 토큰 저장 테스트 시작 ===');
-
-                        // 1. SharedPreferences 직접 접근해서 저장
-                        final prefs = await SharedPreferences.getInstance();
-                        const testToken = 'direct_save_token_1234567890';
-
-                        // 직접 저장
-                        await prefs.setString('access_token', testToken);
-                        await prefs.setString('user_status', 'ACTIVE');
-                        await prefs.setString('user_type', 'STAFF');
-                        await prefs.setString('user_email', '1bfish106@kakao.com');
-
-                        print('✅ SharedPreferences 직접 저장 완료');
-
-                        // 2. 즉시 확인
-                        final savedToken = prefs.getString('access_token');
-                        final savedStatus = prefs.getString('user_status');
-                        print('저장된 토큰: $savedToken');
-                        print('저장된 상태: $savedStatus');
-
-                        // 3. AuthService로도 확인
-                        final authToken = await AuthService.getAccessToken();
-                        print('AuthService 토큰: $authToken');
-
-                        // 4. 모든 키 확인
-                        final allKeys = prefs.getKeys();
-                        print('모든 저장된 키: $allKeys');
-
-                        _showSnackBar('토큰 저장 테스트 완료 - 콘솔 확인', Colors.blue);
-
-                        print('=== 🔧 토큰 저장 테스트 완료 ===');
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                      child: const Text('🔧 토큰저장테스트', style: TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        print('=== 🚀 강제 메인화면 이동 ===');
-
-                        // SharedPreferences 직접 조작
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString('access_token', 'force_main_token_1234567890');
-                        await prefs.setString('user_status', 'ACTIVE');
-                        await prefs.setString('user_type', 'STAFF');
-                        await prefs.setString('user_email', '1bfish106@kakao.com');
-
-                        // 즉시 확인
-                        print('저장 후 토큰: ${prefs.getString('access_token')}');
-                        print('저장 후 상태: ${prefs.getString('user_status')}');
-
-                        _showSnackBar('강제로 메인화면으로 이동합니다!', const Color(0xFF00A3A3));
-
-                        // AuthStateProvider 강제 새로고침
-                        await ref.read(authStateProvider.notifier).refresh();
-
-                        // 혹시나 해서 직접 콜백도 호출
-                        widget.onComplete(UserType.worker);
-
-                        print('=== 🚀 강제 메인화면 이동 완료 ===');
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A3A3)),
-                      child: const Text('🚀 강제메인이동', style: TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        await AuthService.forceSetActiveStatus();
-                        _showSnackBar('상태가 ACTIVE로 설정되었습니다', Colors.green);
-                        await _debugTokenStatus();
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                      child: const Text('🎉 ACTIVE설정', style: TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        await AuthService.clearAllUserData();
-                        print('✅ 모든 데이터 삭제 완료');
-                        _showSnackBar('모든 데이터가 삭제되었습니다', Colors.red);
-                        await _debugTokenStatus();
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                      child: const Text('🗑️ 데이터삭제', style: TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-// 🔧 안전한 전화번호 포맷터 (RangeError 방지)
+// 안전한 전화번호 포맷터
 class PhoneNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
@@ -852,8 +691,6 @@ class PhoneNumberFormatter extends TextInputFormatter {
         selection: TextSelection.collapsed(offset: formatted.length),
       );
     } catch (e) {
-      print('❌ PhoneNumberFormatter 오류: $e');
-      // 오류 발생 시 숫자만 남기고 반환
       String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
       if (digitsOnly.length > 11) {
         digitsOnly = digitsOnly.substring(0, 11);
@@ -874,7 +711,6 @@ class PhoneNumberFormatter extends TextInputFormatter {
       } else if (digits.length <= 7) {
         return '${digits.substring(0, 3)}-${digits.substring(3)}';
       } else {
-        // 안전한 범위 확인
         int firstPart = 3;
         int secondPart = 7;
 
@@ -885,7 +721,6 @@ class PhoneNumberFormatter extends TextInputFormatter {
         return '${digits.substring(0, firstPart)}-${digits.substring(firstPart, secondPart)}-${digits.substring(secondPart)}';
       }
     } catch (e) {
-      print('❌ _formatPhoneNumber 오류: $e');
       return digits;
     }
   }

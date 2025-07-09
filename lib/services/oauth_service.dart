@@ -140,8 +140,8 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     try {
       final uri = Uri.parse(url);
 
-      // 백엔드 호스트이고 OAuth 콜백 경로인지 확인
-      final isBackendHost = uri.host == 'ilhayoung.com';
+      // 🔥 백엔드 호스트를 api.ilhayoung.com으로 변경
+      final isBackendHost = uri.host == 'api.ilhayoung.com';
       final isCallbackPath = uri.path.contains('/login/oauth2/code/') ||
           uri.path.contains('/oauth/callback') ||
           uri.path.contains('/login/success');
@@ -238,7 +238,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
                     .replaceAll(RegExp(r':([a-zA-Z0-9\.\-_]+)([,}])'), r':"\1"\2')
                     .replaceAll(':"true"', ':true')
                     .replaceAll(':"false"', ':false');
-                    print('수정된 JSON: $jsonStr');
+                print('수정된 JSON: $jsonStr');
               }
 
               final responseData = json.decode(jsonStr);

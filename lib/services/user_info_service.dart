@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UserInfoService {
-  static const String baseUrl = 'https://ilhayoung.com/api/v1';
+  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
 
   /// 🎯 MyPageScreen용 사용자 정보 조회 (간단한 null 반환)
   static Future<Map<String, dynamic>?> getUserInfo() async {

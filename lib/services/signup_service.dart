@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 
 class SignupService {
-  static const String baseUrl = 'https://ilhayoung.com/api/v1';
+  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
 
   /// STAFF 회원가입 완료
   static Future<Map<String, dynamic>> completeStaffSignup({
@@ -183,23 +183,56 @@ class SignupService {
   /// 🔧 사용자 상태 업데이트
   static Future<void> _updateUserStatus(Map<String, dynamic> data, SharedPreferences prefs) async {
     try {
-      // 사용자 상태 업데이트 (PENDING -> ACTIVE)
+      print('=== 🔧 사용자 상태 업데이트 시작 ===');
+      print('응답 데이터: $data');
+
+      // 서버 응답에서 상태 확인
+      String newStatus = 'ACTIVE'; // 기본값을 ACTIVE로 설정
+
       if (data['status'] != null && data['status'].toString().isNotEmpty) {
-        await prefs.setString('user_status', data['status'].toString());
-        print('✅ 사용자 상태 업데이트: ${data['status']}');
+        newStatus = data['status'].toString();
+        print('서버에서 받은 상태: $newStatus');
       } else {
-        // 회원가입 성공 시 상태를 ACTIVE로 가정
-        await prefs.setString('user_status', 'ACTIVE');
-        print('✅ 사용자 상태를 ACTIVE로 설정');
+        print('서버 응답에 status 없음 - ACTIVE로 기본 설정');
       }
+
+      // 🎯 중요: 무조건 ACTIVE로 설정 (회원가입 성공했으니까)
+      await prefs.setString('user_status', 'ACTIVE');
+      print('✅ 로컬 상태를 ACTIVE로 업데이트');
 
       // 추가 사용자 정보 저장
       if (data['userId'] != null) {
         await prefs.setString('user_id', data['userId'].toString());
         print('✅ 사용자 ID 저장: ${data['userId']}');
       }
+
+      if (data['id'] != null) {
+        await prefs.setString('user_id', data['id'].toString());
+        print('✅ 사용자 ID 저장 (id 필드): ${data['id']}');
+      }
+
+      // 상태 확인
+      final savedStatus = prefs.getString('user_status');
+      print('저장 후 확인된 상태: $savedStatus');
+
+      if (savedStatus != 'ACTIVE') {
+        print('❌ 상태 저장 실패 - 재시도');
+        await prefs.setString('user_status', 'ACTIVE');
+        final retrySavedStatus = prefs.getString('user_status');
+        print('재시도 후 상태: $retrySavedStatus');
+      }
+
+      print('=== 🔧 사용자 상태 업데이트 완료 ===');
     } catch (e) {
       print('❌ 사용자 상태 업데이트 중 오류: $e');
+
+      // 오류 발생해도 ACTIVE로 강제 설정
+      try {
+        await prefs.setString('user_status', 'ACTIVE');
+        print('🔧 오류 발생으로 인한 강제 ACTIVE 설정 완료');
+      } catch (forceError) {
+        print('❌ 강제 ACTIVE 설정도 실패: $forceError');
+      }
     }
   }
 
