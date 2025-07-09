@@ -2,50 +2,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../components/common/unified_app_header.dart';
+import '../../../providers/employer_job_provider.dart';
 
-// 공고 상태 enum
-enum JobStatus { active, closed }
-
-// 공고 데이터 모델
-class JobPosting {
-  final String id;
-  final String title;
-  final String company;
-  final JobStatus status;
-  final String position;
-  final String salary;
-  final String workTime;
-  final String location;
-  final int applicantCount;
-  final int viewCount;
-  final DateTime createdAt;
-  final DateTime deadline;
-
-  JobPosting({
-    required this.id,
-    required this.title,
-    required this.company,
-    required this.status,
-    required this.position,
-    required this.salary,
-    required this.workTime,
-    required this.location,
-    required this.applicantCount,
-    required this.viewCount,
-    required this.createdAt,
-    required this.deadline,
-  });
-}
-
-class JobManagementScreen extends StatefulWidget {
+class JobManagementScreen extends ConsumerStatefulWidget {
   const JobManagementScreen({Key? key}) : super(key: key);
 
   @override
-  State<JobManagementScreen> createState() => _JobManagementScreenState();
+  ConsumerState<JobManagementScreen> createState() => _JobManagementScreenState();
 }
 
-class _JobManagementScreenState extends State<JobManagementScreen>
+class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -56,25 +24,30 @@ class _JobManagementScreenState extends State<JobManagementScreen>
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _salaryController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _contactController = TextEditingController();
+  final _workLocationController = TextEditingController();
+  final _positionController = TextEditingController();
+  final _paymentDateController = TextEditingController();
+  final _companyNameController = TextEditingController();
+  final _companyAddressController = TextEditingController();
+  final _companyContactController = TextEditingController();
+  final _representativeNameController = TextEditingController();
+  final _startTimeController = TextEditingController();
+  final _endTimeController = TextEditingController();
 
   // 폼 상태
-  String _selectedPosition = '서빙';
-  String _selectedSalaryType = '시급';
-  String _selectedWorkTime = '주간';
+  String _selectedJobType = '카페/음료';
+  String _selectedGender = '무관';
+  String _selectedWorkPeriod = 'ONE_TO_THREE';
+  DateTime _selectedDeadline = DateTime.now().add(const Duration(days: 30));
   List<String> _selectedWorkDays = ['월', '화', '수', '목', '금'];
   bool _isSubmitting = false;
-
-  // 공고 리스트
-  List<JobPosting> _jobPostings = [];
 
   @override
   void initState() {
     super.initState();
     _setupAnimations();
     _setupTabs();
-    _loadJobPostings();
+    _loadInitialData();
     _fillTestData();
   }
 
@@ -97,60 +70,25 @@ class _JobManagementScreenState extends State<JobManagementScreen>
     _tabController = TabController(length: 2, vsync: this);
   }
 
-  void _fillTestData() {
-    _titleController.text = '제주맛집카페 서빙 직원 모집';
-    _descriptionController.text = '친절하고 성실한 서빙 직원을 모집합니다.\n카페 경험자 우대하며, 초보자도 친절히 교육해드립니다.';
-    _salaryController.text = '12000';
-    _locationController.text = '제주시 연동 123-45 제주맛집카페';
-    _contactController.text = '010-1234-5678';
+  void _loadInitialData() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(jobProvider.notifier).loadMyJobs(refresh: true);
+    });
   }
 
-  void _loadJobPostings() {
-    _jobPostings = [
-      JobPosting(
-        id: '1',
-        title: '제주맛집카페 서빙 직원 모집',
-        company: '제주맛집카페',
-        status: JobStatus.active,
-        position: '서빙',
-        salary: '시급 12,000원',
-        workTime: '09:00 - 18:00',
-        location: '제주시 연동',
-        applicantCount: 12,
-        viewCount: 89,
-        createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        deadline: DateTime.now().add(const Duration(days: 14)),
-      ),
-      JobPosting(
-        id: '2',
-        title: '한라산펜션 프론트데스크 직원 모집',
-        company: '한라산펜션',
-        status: JobStatus.active,
-        position: '프론트데스크',
-        salary: '월급 2,200,000원',
-        workTime: '08:00 - 20:00',
-        location: '서귀포시 중문',
-        applicantCount: 8,
-        viewCount: 156,
-        createdAt: DateTime.now().subtract(const Duration(days: 7)),
-        deadline: DateTime.now().add(const Duration(days: 10)),
-      ),
-      JobPosting(
-        id: '3',
-        title: '제주흑돼지집 주방 보조 모집',
-        company: '제주흑돼지집',
-        status: JobStatus.closed,
-        position: '주방',
-        salary: '시급 13,000원',
-        workTime: '17:00 - 01:00',
-        location: '제주시 노형동',
-        applicantCount: 25,
-        viewCount: 234,
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        deadline: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-    ];
-    setState(() {});
+  void _fillTestData() {
+    _titleController.text = '제주 연동 카페 홀 스태프 모집';
+    _descriptionController.text = '친절하고 밝은 성격의 홀 스태프를 모집합니다. 카페 운영 경험이 있으시면 우대합니다.';
+    _salaryController.text = '10000';
+    _workLocationController.text = '제주시 연동';
+    _positionController.text = '홀 스태프';
+    _paymentDateController.text = '매월 25일';
+    _companyNameController.text = '제주 힐링 카페';
+    _companyAddressController.text = '제주시 연동 123-45';
+    _companyContactController.text = '064-123-4567';
+    _representativeNameController.text = '김제주';
+    _startTimeController.text = '09:00';
+    _endTimeController.text = '18:00';
   }
 
   @override
@@ -160,8 +98,15 @@ class _JobManagementScreenState extends State<JobManagementScreen>
     _titleController.dispose();
     _descriptionController.dispose();
     _salaryController.dispose();
-    _locationController.dispose();
-    _contactController.dispose();
+    _workLocationController.dispose();
+    _positionController.dispose();
+    _paymentDateController.dispose();
+    _companyNameController.dispose();
+    _companyAddressController.dispose();
+    _companyContactController.dispose();
+    _representativeNameController.dispose();
+    _startTimeController.dispose();
+    _endTimeController.dispose();
     super.dispose();
   }
 
@@ -199,6 +144,8 @@ class _JobManagementScreenState extends State<JobManagementScreen>
   }
 
   Widget _buildTabBar() {
+    final jobState = ref.watch(jobProvider);
+
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -225,12 +172,12 @@ class _JobManagementScreenState extends State<JobManagementScreen>
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
-        tabs: const [
+        tabs: [
           Tab(
-            icon: Icon(Icons.list, size: 20),
-            text: '내 공고',
+            icon: const Icon(Icons.list, size: 20),
+            text: '내 공고 (${jobState.myJobs.length})',
           ),
-          Tab(
+          const Tab(
             icon: Icon(Icons.add_circle, size: 20),
             text: '새 공고 작성',
           ),
@@ -240,13 +187,22 @@ class _JobManagementScreenState extends State<JobManagementScreen>
   }
 
   Widget _buildJobListTab() {
-    final activeJobs = _jobPostings.where((job) => job.status == JobStatus.active).toList();
-    final closedJobs = _jobPostings.where((job) => job.status == JobStatus.closed).toList();
+    final jobState = ref.watch(jobProvider);
+    final myJobs = jobState.myJobs;
+    final activeJobs = myJobs.where((job) => job.isActive).toList();
+    final inactiveJobs = myJobs.where((job) => !job.isActive).toList();
+
+    if (jobState.isLoading && myJobs.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF2D3748),
+        ),
+      );
+    }
 
     return RefreshIndicator(
       onRefresh: () async {
-        await Future.delayed(const Duration(seconds: 1));
-        _loadJobPostings();
+        await ref.read(jobProvider.notifier).loadMyJobs(refresh: true);
       },
       color: const Color(0xFF2D3748),
       child: SingleChildScrollView(
@@ -254,20 +210,24 @@ class _JobManagementScreenState extends State<JobManagementScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildStatsCard(),
+            _buildStatsCard(myJobs),
             const SizedBox(height: 20),
+            if (jobState.error != null) ...[
+              _buildErrorWidget(jobState.error!),
+              const SizedBox(height: 20),
+            ],
             if (activeJobs.isNotEmpty) ...[
               _buildSectionHeader('활성 공고', activeJobs.length, Colors.green),
               const SizedBox(height: 12),
               ...activeJobs.map((job) => _buildJobCard(job)),
               const SizedBox(height: 20),
             ],
-            if (closedJobs.isNotEmpty) ...[
-              _buildSectionHeader('마감된 공고', closedJobs.length, Colors.grey),
+            if (inactiveJobs.isNotEmpty) ...[
+              _buildSectionHeader('비활성 공고', inactiveJobs.length, Colors.grey),
               const SizedBox(height: 12),
-              ...closedJobs.map((job) => _buildJobCard(job)),
+              ...inactiveJobs.map((job) => _buildJobCard(job)),
             ],
-            if (_jobPostings.isEmpty) _buildEmptyState(),
+            if (myJobs.isEmpty && !jobState.isLoading) _buildEmptyState(),
           ],
         ),
       ),
@@ -275,6 +235,8 @@ class _JobManagementScreenState extends State<JobManagementScreen>
   }
 
   Widget _buildCreateJobTab() {
+    final categories = ref.watch(categoriesProvider);
+
     return Form(
       key: _formKey,
       child: SingleChildScrollView(
@@ -283,141 +245,172 @@ class _JobManagementScreenState extends State<JobManagementScreen>
           children: [
             _buildFormHeader(),
             const SizedBox(height: 20),
-            _buildFormSection(
-              title: '기본 정보',
-              icon: Icons.info,
-              children: [
-                _buildTextField(
-                  label: '공고 제목',
-                  hint: '예: 제주맛집카페 서빙 직원 모집',
-                  controller: _titleController,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '공고 제목을 입력해주세요';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  label: '상세 설명',
-                  hint: '업무 내용, 우대사항, 근무환경 등을 자세히 작성해주세요',
-                  controller: _descriptionController,
-                  maxLines: 4,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '상세 설명을 입력해주세요';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildDropdown(
-                  label: '직무',
-                  value: _selectedPosition,
-                  items: const ['서빙', '주방', '캐셔', '청소', '배달', '기타'],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedPosition = value!;
-                    });
-                  },
-                ),
-              ],
-            ),
+            _buildBasicInfoSection(categories),
             const SizedBox(height: 16),
-            _buildFormSection(
-              title: '근무 조건',
-              icon: Icons.work,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDropdown(
-                        label: '급여 형태',
-                        value: _selectedSalaryType,
-                        items: const ['시급', '일급', '월급'],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedSalaryType = value!;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildTextField(
-                        label: '급여 (원)',
-                        hint: '12000',
-                        controller: _salaryController,
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return '급여를 입력해주세요';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildDropdown(
-                  label: '근무 시간대',
-                  value: _selectedWorkTime,
-                  items: const ['주간', '야간', '새벽', '심야', '자유시간'],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedWorkTime = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildWorkDaysSelector(),
-              ],
-            ),
+            _buildWorkConditionSection(),
             const SizedBox(height: 16),
-            _buildFormSection(
-              title: '근무 위치',
-              icon: Icons.location_on,
-              children: [
-                _buildTextField(
-                  label: '근무 장소',
-                  hint: '제주시 연동 123-45 제주맛집카페',
-                  controller: _locationController,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '근무 장소를 입력해주세요';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
+            _buildLocationSection(),
             const SizedBox(height: 16),
-            _buildFormSection(
-              title: '연락처 정보',
-              icon: Icons.contact_phone,
-              children: [
-                _buildTextField(
-                  label: '연락처',
-                  hint: '010-1234-5678',
-                  controller: _contactController,
-                  keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '연락처를 입력해주세요';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
+            _buildCompanySection(),
             const SizedBox(height: 32),
             _buildSubmitButton(),
             const SizedBox(height: 40),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBasicInfoSection(List<String> categories) {
+    return _buildFormSection(
+      title: '기본 정보',
+      icon: Icons.info,
+      children: [
+        _buildTextField(
+          label: '공고 제목',
+          hint: '예: 제주 연동 카페 홀 스태프 모집',
+          controller: _titleController,
+          validator: (value) => value?.isEmpty == true ? '공고 제목을 입력해주세요' : null,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: '상세 설명',
+          hint: '업무 내용, 우대사항, 근무환경 등을 자세히 작성해주세요',
+          controller: _descriptionController,
+          maxLines: 4,
+          validator: (value) => value?.isEmpty == true ? '상세 설명을 입력해주세요' : null,
+        ),
+        const SizedBox(height: 16),
+        _buildDropdown(
+          label: '직무 분야',
+          value: _selectedJobType,
+          items: categories.where((category) => category != '전체').toList(),
+          onChanged: (value) => setState(() => _selectedJobType = value!),
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: '세부 직무',
+          hint: '예: 홀 스태프, 바리스타, 주방 보조 등',
+          controller: _positionController,
+          validator: (value) => value?.isEmpty == true ? '세부 직무를 입력해주세요' : null,
+        ),
+        const SizedBox(height: 16),
+        _buildDropdown(
+          label: '성별',
+          value: _selectedGender,
+          items: const ['무관', '남성', '여성'],
+          onChanged: (value) => setState(() => _selectedGender = value!),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWorkConditionSection() {
+    return _buildFormSection(
+      title: '근무 조건',
+      icon: Icons.work,
+      children: [
+        _buildTextField(
+          label: '시급 (원)',
+          hint: '10000',
+          controller: _salaryController,
+          keyboardType: TextInputType.number,
+          validator: (value) => value?.isEmpty == true ? '시급을 입력해주세요' : null,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildTextField(
+                label: '근무 시작 시간',
+                hint: '09:00',
+                controller: _startTimeController,
+                validator: (value) => value?.isEmpty == true ? '시작 시간을 입력해주세요' : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTextField(
+                label: '근무 종료 시간',
+                hint: '18:00',
+                controller: _endTimeController,
+                validator: (value) => value?.isEmpty == true ? '종료 시간을 입력해주세요' : null,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildDropdown(
+          label: '근무 기간',
+          value: _selectedWorkPeriod,
+          items: const ['ONE_TO_THREE', 'THREE_TO_SIX', 'SIX_TO_TWELVE', 'OVER_ONE_YEAR'],
+          itemLabels: const ['1개월 ~ 3개월', '3개월 ~ 6개월', '6개월 ~ 1년', '1년 이상'],
+          onChanged: (value) => setState(() => _selectedWorkPeriod = value!),
+        ),
+        const SizedBox(height: 16),
+        _buildWorkDaysSelector(),
+        const SizedBox(height: 16),
+        _buildDeadlinePicker(),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: '급여 지급일',
+          hint: '매월 25일',
+          controller: _paymentDateController,
+          validator: (value) => value?.isEmpty == true ? '급여 지급일을 입력해주세요' : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocationSection() {
+    return _buildFormSection(
+      title: '근무 위치',
+      icon: Icons.location_on,
+      children: [
+        _buildTextField(
+          label: '근무 지역',
+          hint: '제주시 연동',
+          controller: _workLocationController,
+          validator: (value) => value?.isEmpty == true ? '근무 지역을 입력해주세요' : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompanySection() {
+    return _buildFormSection(
+      title: '업체 정보',
+      icon: Icons.business,
+      children: [
+        _buildTextField(
+          label: '업체명',
+          hint: '제주 힐링 카페',
+          controller: _companyNameController,
+          validator: (value) => value?.isEmpty == true ? '업체명을 입력해주세요' : null,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: '업체 주소',
+          hint: '제주시 연동 123-45',
+          controller: _companyAddressController,
+          validator: (value) => value?.isEmpty == true ? '업체 주소를 입력해주세요' : null,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: '업체 연락처',
+          hint: '064-123-4567',
+          controller: _companyContactController,
+          keyboardType: TextInputType.phone,
+          validator: (value) => value?.isEmpty == true ? '업체 연락처를 입력해주세요' : null,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: '대표자명',
+          hint: '김제주',
+          controller: _representativeNameController,
+          validator: (value) => value?.isEmpty == true ? '대표자명을 입력해주세요' : null,
+        ),
+      ],
     );
   }
 
@@ -460,10 +453,10 @@ class _JobManagementScreenState extends State<JobManagementScreen>
     );
   }
 
-  Widget _buildStatsCard() {
-    final totalApplicants = _jobPostings.fold(0, (sum, job) => sum + job.applicantCount);
-    final totalViews = _jobPostings.fold(0, (sum, job) => sum + job.viewCount);
-    final activeCount = _jobPostings.where((job) => job.status == JobStatus.active).length;
+  Widget _buildStatsCard(List<JobPosting> myJobs) {
+    final totalApplicants = myJobs.fold<int>(0, (sum, job) => sum + job.applicantCount);
+    final totalViews = myJobs.fold<int>(0, (sum, job) => sum + job.viewCount);
+    final activeCount = myJobs.where((job) => job.isActive).length;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -494,7 +487,7 @@ class _JobManagementScreenState extends State<JobManagementScreen>
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _buildStatItem('총 공고', '${_jobPostings.length}개', Icons.work)),
+              Expanded(child: _buildStatItem('총 공고', '${myJobs.length}개', Icons.work)),
               Expanded(child: _buildStatItem('활성 공고', '${activeCount}개', Icons.trending_up)),
               Expanded(child: _buildStatItem('총 지원자', '${totalApplicants}명', Icons.people)),
               Expanded(child: _buildStatItem('총 조회수', '${totalViews}회', Icons.visibility)),
@@ -528,6 +521,49 @@ class _JobManagementScreenState extends State<JobManagementScreen>
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+
+  Widget _buildErrorWidget(String error) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red[600]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '데이터를 불러올 수 없습니다',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red[600],
+                  ),
+                ),
+                Text(
+                  error,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => ref.read(jobProvider.notifier).loadMyJobs(refresh: true),
+            child: Text('재시도', style: TextStyle(color: Colors.red[600])),
+          ),
+        ],
+      ),
     );
   }
 
@@ -579,7 +615,7 @@ class _JobManagementScreenState extends State<JobManagementScreen>
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: job.status == JobStatus.active
+          color: job.isActive
               ? Colors.green.withOpacity(0.3)
               : Colors.grey.withOpacity(0.3),
         ),
@@ -593,12 +629,34 @@ class _JobManagementScreenState extends State<JobManagementScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      job.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            job.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (job.isNew)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -614,17 +672,17 @@ class _JobManagementScreenState extends State<JobManagementScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: job.status == JobStatus.active
+                  color: job.isActive
                       ? Colors.green.withOpacity(0.1)
                       : Colors.grey.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  job.status == JobStatus.active ? '활성' : '마감',
+                  job.isActive ? '활성' : '마감',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: job.status == JobStatus.active ? Colors.green : Colors.grey,
+                    color: job.isActive ? Colors.green : Colors.grey,
                   ),
                 ),
               ),
@@ -637,7 +695,10 @@ class _JobManagementScreenState extends State<JobManagementScreen>
               const SizedBox(width: 16),
               _buildJobInfo(Icons.visibility, '${job.viewCount}회 조회'),
               const SizedBox(width: 16),
-              _buildJobInfo(Icons.access_time, '${_getDaysLeft(job.deadline)}일 남음'),
+              if (job.isUrgent)
+                _buildJobInfo(Icons.warning, '마감임박', isUrgent: true)
+              else
+                _buildJobInfo(Icons.access_time, '${job.daysUntilDeadline}일 남음'),
             ],
           ),
           const SizedBox(height: 12),
@@ -681,17 +742,22 @@ class _JobManagementScreenState extends State<JobManagementScreen>
     );
   }
 
-  Widget _buildJobInfo(IconData icon, String text) {
+  Widget _buildJobInfo(IconData icon, String text, {bool isUrgent = false}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.grey[600]),
+        Icon(
+          icon,
+          size: 14,
+          color: isUrgent ? Colors.red : Colors.grey[600],
+        ),
         const SizedBox(width: 4),
         Text(
           text,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey[600],
+            color: isUrgent ? Colors.red : Colors.grey[600],
+            fontWeight: isUrgent ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
       ],
@@ -830,6 +896,7 @@ class _JobManagementScreenState extends State<JobManagementScreen>
     required String label,
     required String value,
     required List<String> items,
+    List<String>? itemLabels,
     required void Function(String?) onChanged,
   }) {
     return Column(
@@ -856,13 +923,74 @@ class _JobManagementScreenState extends State<JobManagementScreen>
               border: InputBorder.none,
               contentPadding: EdgeInsets.all(16),
             ),
-            items: items.map((String item) {
+            items: items.asMap().entries.map((entry) {
+              final index = entry.key;
+              final item = entry.value;
+              final displayText = itemLabels != null && index < itemLabels.length
+                  ? itemLabels[index]
+                  : item;
+
               return DropdownMenuItem<String>(
                 value: item,
-                child: Text(item),
+                child: Text(displayText),
               );
             }).toList(),
             onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeadlinePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '마감일',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF2D3748),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            title: Text(
+              '${_selectedDeadline.year}년 ${_selectedDeadline.month}월 ${_selectedDeadline.day}일',
+              style: const TextStyle(fontSize: 14),
+            ),
+            trailing: const Icon(Icons.calendar_today, color: Color(0xFF2D3748)),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDeadline,
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: const ColorScheme.light(
+                        primary: Color(0xFF2D3748),
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (picked != null) {
+                setState(() {
+                  _selectedDeadline = picked;
+                });
+              }
+            },
           ),
         ),
       ],
@@ -985,13 +1113,6 @@ class _JobManagementScreenState extends State<JobManagementScreen>
     );
   }
 
-  // 헬퍼 메서드들
-  int _getDaysLeft(DateTime deadline) {
-    final now = DateTime.now();
-    final difference = deadline.difference(now).inDays;
-    return difference > 0 ? difference : 0;
-  }
-
   void _editJob(JobPosting job) {
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1106,12 +1227,7 @@ class _JobManagementScreenState extends State<JobManagementScreen>
     }
 
     if (_selectedWorkDays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('근무 요일을 최소 1개 이상 선택해주세요'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showErrorSnackBar('근무 요일을 최소 1개 이상 선택해주세요');
       return;
     }
 
@@ -1121,66 +1237,97 @@ class _JobManagementScreenState extends State<JobManagementScreen>
 
     try {
       HapticFeedback.mediumImpact();
-      await Future.delayed(const Duration(seconds: 2));
 
-      final newJob = JobPosting(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+      final success = await ref.read(jobProvider.notifier).createJob(
         title: _titleController.text,
-        company: '내 업체',
-        status: JobStatus.active,
-        position: _selectedPosition,
-        salary: '$_selectedSalaryType ${_salaryController.text}원',
-        workTime: _selectedWorkTime,
-        location: _locationController.text,
-        applicantCount: 0,
-        viewCount: 0,
-        createdAt: DateTime.now(),
-        deadline: DateTime.now().add(const Duration(days: 30)),
+        description: _descriptionController.text,
+        position: _positionController.text,
+        salary: '시급 ${_salaryController.text}원',
+        workTime: '${_startTimeController.text} - ${_endTimeController.text}',
+        location: _workLocationController.text,
+        contact: _companyContactController.text,
+        workDays: _selectedWorkDays,
+        workLocation: _workLocationController.text,
+        salaryAmount: int.parse(_salaryController.text),
+        jobType: _selectedJobType,
+        gender: _selectedGender,
+        deadline: _selectedDeadline.toIso8601String(),
+        paymentDate: _paymentDateController.text,
+        companyName: _companyNameController.text,
+        companyAddress: _companyAddressController.text,
+        companyContact: _companyContactController.text,
+        representativeName: _representativeNameController.text,
+        startTime: _startTimeController.text,
+        endTime: _endTimeController.text,
+        workPeriod: _selectedWorkPeriod,
       );
 
-      setState(() {
-        _jobPostings.insert(0, newJob);
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('공고가 성공적으로 등록되었습니다!'),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-
-      _formKey.currentState!.reset();
-      _titleController.clear();
-      _descriptionController.clear();
-      _salaryController.clear();
-      _locationController.clear();
-      _contactController.clear();
-      _selectedPosition = '서빙';
-      _selectedSalaryType = '시급';
-      _selectedWorkTime = '주간';
-      _selectedWorkDays = ['월', '화', '수', '목', '금'];
-
-      _tabController.animateTo(0);
-
+      if (success) {
+        _showSuccessSnackBar('공고가 성공적으로 등록되었습니다!');
+        _clearForm();
+        _tabController.animateTo(0);
+      } else {
+        final jobState = ref.read(jobProvider);
+        _showErrorSnackBar(jobState.error ?? '공고 등록에 실패했습니다');
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('공고 등록에 실패했습니다: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showErrorSnackBar('공고 등록에 실패했습니다: $e');
     } finally {
       setState(() {
         _isSubmitting = false;
       });
     }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  void _clearForm() {
+    _formKey.currentState!.reset();
+    _titleController.clear();
+    _descriptionController.clear();
+    _salaryController.clear();
+    _workLocationController.clear();
+    _positionController.clear();
+    _paymentDateController.clear();
+    _companyNameController.clear();
+    _companyAddressController.clear();
+    _companyContactController.clear();
+    _representativeNameController.clear();
+    _startTimeController.clear();
+    _endTimeController.clear();
+
+    setState(() {
+      _selectedJobType = '카페/음료';
+      _selectedGender = '무관';
+      _selectedWorkPeriod = 'ONE_TO_THREE';
+      _selectedDeadline = DateTime.now().add(const Duration(days: 30));
+      _selectedWorkDays = ['월', '화', '수', '목', '금'];
+    });
   }
 }

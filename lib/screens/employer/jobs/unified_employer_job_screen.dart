@@ -2,46 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../components/common/unified_app_header.dart';
-import 'job_management_screen.dart';
+import '../../../providers/employer_job_provider.dart';
+import 'job_management_screen.dart' hide JobPosting;
 
-// 공고 상태 enum
-enum JobStatus { active, closed }
-
-// 공고 데이터 모델
-class AllJobPosting {
-  final String id;
-  final String title;
-  final String company;
-  final JobStatus status;
-  final String position;
-  final String salary;
-  final String workTime;
-  final String location;
-  final int applicantCount;
-  final int viewCount;
-  final DateTime createdAt;
-  final DateTime deadline;
-  final bool isMyJob;
-
-  AllJobPosting({
-    required this.id,
-    required this.title,
-    required this.company,
-    required this.status,
-    required this.position,
-    required this.salary,
-    required this.workTime,
-    required this.location,
-    required this.applicantCount,
-    required this.viewCount,
-    required this.createdAt,
-    required this.deadline,
-    this.isMyJob = false,
-  });
-}
-
-class UnifiedEmployerJobScreen extends StatefulWidget {
+class UnifiedEmployerJobScreen extends ConsumerStatefulWidget {
   final int initialTab; // 0: 전체 공고, 1: 내 공고
 
   const UnifiedEmployerJobScreen({
@@ -50,31 +16,23 @@ class UnifiedEmployerJobScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<UnifiedEmployerJobScreen> createState() => _UnifiedEmployerJobScreenState();
+  ConsumerState<UnifiedEmployerJobScreen> createState() => _UnifiedEmployerJobScreenState();
 }
 
-class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
+class _UnifiedEmployerJobScreenState extends ConsumerState<UnifiedEmployerJobScreen>
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   late TabController _tabController;
 
-  // 필터 상태
-  String _selectedRegion = '전체';
-  String _selectedPosition = '전체';
-  String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-
-  // 공고 리스트
-  List<AllJobPosting> _allJobs = [];
-  List<AllJobPosting> _myJobs = [];
 
   @override
   void initState() {
     super.initState();
     _setupAnimations();
     _setupTabs();
-    _loadAllJobs();
+    _loadInitialData();
   }
 
   void _setupAnimations() {
@@ -100,120 +58,11 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  void _loadAllJobs() {
-    _allJobs = [
-      // 내 공고들
-      AllJobPosting(
-        id: '1',
-        title: '제주맛집카페 서빙 직원 모집',
-        company: '제주맛집카페',
-        status: JobStatus.active,
-        position: '서빙',
-        salary: '시급 12,000원',
-        workTime: '09:00 - 18:00',
-        location: '제주시 연동',
-        applicantCount: 12,
-        viewCount: 89,
-        createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        deadline: DateTime.now().add(const Duration(days: 14)),
-        isMyJob: true,
-      ),
-      AllJobPosting(
-        id: '2',
-        title: '한라산펜션 프론트데스크 직원 모집',
-        company: '한라산펜션',
-        status: JobStatus.active,
-        position: '프론트데스크',
-        salary: '월급 2,200,000원',
-        workTime: '08:00 - 20:00',
-        location: '서귀포시 중문',
-        applicantCount: 8,
-        viewCount: 156,
-        createdAt: DateTime.now().subtract(const Duration(days: 7)),
-        deadline: DateTime.now().add(const Duration(days: 10)),
-        isMyJob: true,
-      ),
-
-      // 다른 업체 공고들
-      AllJobPosting(
-        id: '3',
-        title: '제주흑돼지집 주방 보조 모집',
-        company: '제주흑돼지집',
-        status: JobStatus.active,
-        position: '주방',
-        salary: '시급 13,000원',
-        workTime: '17:00 - 01:00',
-        location: '제주시 노형동',
-        applicantCount: 25,
-        viewCount: 234,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        deadline: DateTime.now().add(const Duration(days: 20)),
-        isMyJob: false,
-      ),
-      AllJobPosting(
-        id: '4',
-        title: '제주공항 면세점 판매직 모집',
-        company: '제주공항면세점',
-        status: JobStatus.active,
-        position: '판매',
-        salary: '시급 11,500원',
-        workTime: '08:00 - 20:00',
-        location: '제주시 공항로',
-        applicantCount: 45,
-        viewCount: 523,
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        deadline: DateTime.now().add(const Duration(days: 25)),
-        isMyJob: false,
-      ),
-      AllJobPosting(
-        id: '5',
-        title: '성산일출봉 관광안내소 직원 모집',
-        company: '성산일출봉관리사무소',
-        status: JobStatus.active,
-        position: '관광안내',
-        salary: '일급 80,000원',
-        workTime: '06:00 - 18:00',
-        location: '서귀포시 성산읍',
-        applicantCount: 18,
-        viewCount: 167,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        deadline: DateTime.now().add(const Duration(days: 30)),
-        isMyJob: false,
-      ),
-      AllJobPosting(
-        id: '6',
-        title: '제주올레길 카페 바리스타 모집',
-        company: '올레카페',
-        status: JobStatus.active,
-        position: '바리스타',
-        salary: '시급 12,500원',
-        workTime: '07:00 - 19:00',
-        location: '서귀포시 표선면',
-        applicantCount: 33,
-        viewCount: 298,
-        createdAt: DateTime.now().subtract(const Duration(days: 4)),
-        deadline: DateTime.now().add(const Duration(days: 18)),
-        isMyJob: false,
-      ),
-      AllJobPosting(
-        id: '7',
-        title: '중문관광단지 리조트 청소 직원',
-        company: '중문리조트',
-        status: JobStatus.active,
-        position: '청소',
-        salary: '시급 10,500원',
-        workTime: '09:00 - 17:00',
-        location: '서귀포시 중문',
-        applicantCount: 12,
-        viewCount: 87,
-        createdAt: DateTime.now().subtract(const Duration(days: 6)),
-        deadline: DateTime.now().add(const Duration(days: 12)),
-        isMyJob: false,
-      ),
-    ];
-
-    _myJobs = _allJobs.where((job) => job.isMyJob).toList();
-    setState(() {});
+  void _loadInitialData() {
+    // 초기 데이터 로드
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(jobProvider.notifier).loadInitialData();
+    });
   }
 
   @override
@@ -226,6 +75,10 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
 
   @override
   Widget build(BuildContext context) {
+    final jobState = ref.watch(jobProvider);
+    final filter = ref.watch(jobFilterProvider);
+    final allJobs = ref.read(jobProvider.notifier).filteredAllJobs;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FFFE),
       appBar: UnifiedAppHeader(
@@ -241,13 +94,13 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
         opacity: _fadeAnimation,
         child: Column(
           children: [
-            _buildTabBar(),
+            _buildTabBar(allJobs.length, jobState.myJobs.length),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildAllJobsTab(),
-                  _buildMyJobsTab(),
+                  _buildAllJobsTab(jobState, allJobs),
+                  _buildMyJobsTab(jobState),
                 ],
               ),
             ),
@@ -258,7 +111,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(int allJobsCount, int myJobsCount) {
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -288,47 +141,45 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
         tabs: [
           Tab(
             icon: const Icon(Icons.public, size: 20),
-            text: '전체 공고 (${_getFilteredAllJobs().length})',
+            text: '전체 공고 ($allJobsCount)',
           ),
           Tab(
             icon: const Icon(Icons.work, size: 20),
-            text: '내 공고 (${_myJobs.length})',
+            text: '내 공고 ($myJobsCount)',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAllJobsTab() {
+  Widget _buildAllJobsTab(JobState jobState, List<JobPosting> allJobs) {
     return Column(
       children: [
         _buildSearchAndFilter(),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () async {
-              await Future.delayed(const Duration(seconds: 1));
-              _loadAllJobs();
+              await ref.read(jobProvider.notifier).loadAllJobs(refresh: true);
             },
             color: const Color(0xFF2D3748),
-            child: _buildJobList(_getFilteredAllJobs(), isAllJobsTab: true),
+            child: _buildJobList(allJobs, jobState.isLoading, isAllJobsTab: true),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMyJobsTab() {
+  Widget _buildMyJobsTab(JobState jobState) {
     return RefreshIndicator(
       onRefresh: () async {
-        await Future.delayed(const Duration(seconds: 1));
-        _loadAllJobs();
+        await ref.read(jobProvider.notifier).loadMyJobs(refresh: true);
       },
       color: const Color(0xFF2D3748),
       child: Column(
         children: [
-          _buildMyJobsStats(),
+          _buildMyJobsStats(jobState.myJobs),
           Expanded(
-            child: _buildJobList(_myJobs, isAllJobsTab: false),
+            child: _buildJobList(jobState.myJobs, jobState.isLoading, isAllJobsTab: false),
           ),
         ],
       ),
@@ -336,6 +187,10 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
   }
 
   Widget _buildSearchAndFilter() {
+    final filter = ref.watch(jobFilterProvider);
+    final locations = ref.watch(locationsProvider);
+    final categories = ref.watch(categoriesProvider);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -367,9 +222,9 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
+              ref.read(jobFilterProvider.notifier).updateSearchQuery(value);
+              // 검색어 변경시 전체 공고 다시 로드
+              ref.read(jobProvider.notifier).loadAllJobs();
             },
           ),
           const SizedBox(height: 12),
@@ -379,12 +234,11 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
               Expanded(
                 child: _buildFilterDropdown(
                   label: '지역',
-                  value: _selectedRegion,
-                  items: const ['전체', '제주시', '서귀포시'],
+                  value: filter.location,
+                  items: locations,
                   onChanged: (value) {
-                    setState(() {
-                      _selectedRegion = value!;
-                    });
+                    ref.read(jobFilterProvider.notifier).updateLocation(value!);
+                    ref.read(jobProvider.notifier).loadAllJobs();
                   },
                 ),
               ),
@@ -392,12 +246,11 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
               Expanded(
                 child: _buildFilterDropdown(
                   label: '직무',
-                  value: _selectedPosition,
-                  items: const ['전체', '서빙', '주방', '판매', '청소', '바리스타', '관광안내', '프론트데스크'],
+                  value: filter.category,
+                  items: categories,
                   onChanged: (value) {
-                    setState(() {
-                      _selectedPosition = value!;
-                    });
+                    ref.read(jobFilterProvider.notifier).updateCategory(value!);
+                    ref.read(jobProvider.notifier).loadAllJobs();
                   },
                 ),
               ),
@@ -453,10 +306,10 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  Widget _buildMyJobsStats() {
-    final activeJobs = _myJobs.where((job) => job.status == JobStatus.active).length;
-    final totalApplicants = _myJobs.fold(0, (sum, job) => sum + job.applicantCount);
-    final totalViews = _myJobs.fold(0, (sum, job) => sum + job.viewCount);
+  Widget _buildMyJobsStats(List<JobPosting> myJobs) {
+    final activeJobs = myJobs.where((job) => job.isActive).length;
+    final totalApplicants = myJobs.fold<int>(0, (sum, job) => sum + job.applicantCount);
+    final totalViews = myJobs.fold<int>(0, (sum, job) => sum + job.viewCount);
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -501,7 +354,15 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  Widget _buildJobList(List<AllJobPosting> jobs, {required bool isAllJobsTab}) {
+  Widget _buildJobList(List<JobPosting> jobs, bool isLoading, {required bool isAllJobsTab}) {
+    if (isLoading && jobs.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF2D3748),
+        ),
+      );
+    }
+
     if (jobs.isEmpty) {
       return _buildEmptyState(isAllJobsTab);
     }
@@ -515,7 +376,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  Widget _buildJobCard(AllJobPosting job, {required bool isAllJobsTab}) {
+  Widget _buildJobCard(JobPosting job, {required bool isAllJobsTab}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -555,7 +416,24 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
                             ),
                           ),
                         ),
-                        if (job.isMyJob)
+                        if (job.isNew)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        if (job.isMyJob) ...[
+                          const SizedBox(width: 4),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -571,6 +449,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
                               ),
                             ),
                           ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -612,7 +491,10 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
               const SizedBox(width: 12),
               _buildJobInfo(Icons.visibility, '${job.viewCount}회'),
               const SizedBox(width: 12),
-              _buildJobInfo(Icons.access_time, '${_getDaysLeft(job.deadline)}일'),
+              if (job.isUrgent)
+                _buildJobInfo(Icons.warning, '마감임박', isUrgent: true)
+              else
+                _buildJobInfo(Icons.access_time, '${job.daysUntilDeadline}일'),
             ],
           ),
           if (job.isMyJob && !isAllJobsTab) ...[
@@ -658,17 +540,22 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  Widget _buildJobInfo(IconData icon, String text) {
+  Widget _buildJobInfo(IconData icon, String text, {bool isUrgent = false}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 12, color: Colors.grey[600]),
+        Icon(
+          icon,
+          size: 12,
+          color: isUrgent ? Colors.red : Colors.grey[600],
+        ),
         const SizedBox(width: 2),
         Text(
           text,
           style: TextStyle(
             fontSize: 11,
-            color: Colors.grey[600],
+            color: isUrgent ? Colors.red : Colors.grey[600],
+            fontWeight: isUrgent ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
       ],
@@ -676,6 +563,58 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
   }
 
   Widget _buildEmptyState(bool isAllJobsTab) {
+    final jobState = ref.watch(jobProvider);
+
+    if (jobState.error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 80,
+              color: Colors.red[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '데이터를 불러올 수 없습니다',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              jobState.error!,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                if (isAllJobsTab) {
+                  ref.read(jobProvider.notifier).loadAllJobs(refresh: true);
+                } else {
+                  ref.read(jobProvider.notifier).loadMyJobs(refresh: true);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2D3748),
+              ),
+              child: const Text(
+                '다시 시도',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -724,43 +663,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  // 헬퍼 메서드들
-  List<AllJobPosting> _getFilteredAllJobs() {
-    return _allJobs.where((job) {
-      // 검색어 필터
-      if (_searchQuery.isNotEmpty) {
-        final query = _searchQuery.toLowerCase();
-        if (!job.title.toLowerCase().contains(query) &&
-            !job.company.toLowerCase().contains(query)) {
-          return false;
-        }
-      }
-
-      // 지역 필터
-      if (_selectedRegion != '전체') {
-        if (!job.location.contains(_selectedRegion)) {
-          return false;
-        }
-      }
-
-      // 직무 필터
-      if (_selectedPosition != '전체') {
-        if (job.position != _selectedPosition) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
-  }
-
-  int _getDaysLeft(DateTime deadline) {
-    final now = DateTime.now();
-    final difference = deadline.difference(now).inDays;
-    return difference > 0 ? difference : 0;
-  }
-
-  void _editJob(AllJobPosting job) {
+  void _editJob(JobPosting job) {
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -772,7 +675,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     );
   }
 
-  void _viewApplicants(AllJobPosting job) {
+  void _viewApplicants(JobPosting job) {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
       context: context,
@@ -877,7 +780,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
       ),
     ).then((_) {
       // 공고 작성 후 돌아왔을 때 데이터 새로고침
-      _loadAllJobs();
+      ref.read(jobProvider.notifier).loadInitialData();
     });
   }
 }
