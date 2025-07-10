@@ -1,4 +1,4 @@
-// lib/screens/worker/jobs/jeju_job_list_screen.dart
+// lib/screens/worker/jobs/jeju_job_list_screen.dart - 컴포넌트화된 상세보기 적용
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +12,7 @@ import '../../../models/job_posting_model.dart';
 import '../../../components/common/jeju_select_box.dart';
 import '../../../components/jobs/job_banner.dart';
 import '../../../components/jobs/filter_bottom_sheet.dart';
-import '../../../components/jobs/job_detail_bottom_sheet.dart';
+import '../../../components/jobs/job_detail_sheet.dart'; // 새로운 상세보기 컴포넌트
 
 class JejuJobListScreen extends StatefulWidget {
   final Function? onLogout;
@@ -160,6 +160,18 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
     }
   }
 
+  void _showSuccessMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: const Color(0xFF00A3A3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -226,14 +238,18 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
             Expanded(
               child: _isInitialLoading
                   ? _buildInitialLoadingWidget()
-                  : CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  _buildJobsList(),
-                  if (_isLoading) _buildLoadingIndicator(),
-                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                ],
+                  : RefreshIndicator(
+                color: const Color(0xFF00A3A3),
+                onRefresh: () => _loadJobPostings(isRefresh: true),
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    _buildJobsList(),
+                    if (_isLoading) _buildLoadingIndicator(),
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  ],
+                ),
               ),
             ),
           ],
@@ -664,301 +680,27 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
     );
   }
 
+  /// 🎯 컴포넌트화된 상세보기 사용
   void _showJobDetail(JobPosting job) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => _buildJobDetailSheet(job),
-    );
-  }
-
-  Widget _buildJobDetailSheet(JobPosting job) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // 드래그 핸들
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // 헤더
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00A3A3).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.work,
-                    color: Color(0xFF00A3A3),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        job.companyName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-
-          // 상세 정보
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 급여 정보
-                  _buildDetailSection('급여 정보', [
-                    _buildDetailItem('급여', job.formattedSalary),
-                  ]),
-
-                  // 근무 정보
-                  _buildDetailSection('근무 정보', [
-                    _buildDetailItem('근무지', job.workLocation),
-                    _buildDetailItem('근무시간', job.workScheduleText),
-                    _buildDetailItem('근무요일', job.workDaysText),
-                    _buildDetailItem('근무기간', job.workSchedule.workPeriodText),
-                  ]),
-
-                  // 채용 정보
-                  _buildDetailSection('채용 정보', [
-                    _buildDetailItem('지원자 수', '${job.applicationCount}명'),
-                    _buildDetailItem('마감일', _formatDate(job.deadline)),
-                    _buildDetailItem('등록일', _formatDate(job.createdAt)),
-                  ]),
-
-                  const SizedBox(height: 80),
-                ],
-              ),
-            ),
-          ),
-
-          // 지원 버튼
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  offset: const Offset(0, -2),
-                  blurRadius: 8,
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: job.isExpired ? null : () => _applyToJob(job),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: job.isExpired ? Colors.grey : const Color(0xFF00A3A3),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    job.isExpired ? '마감된 공고' : '지원하기',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+      builder: (context) => JobDetailSheet(
+        job: job,
+        onApply: (message) {
+          // 지원 성공 시 성공 메시지 표시
+          _showSuccessMessage(message);
+          // 목록 새로고침 (지원자 수 업데이트)
+          _loadJobPostings(isRefresh: true);
+        },
       ),
     );
-  }
-
-  Widget _buildDetailSection(String title, List<Widget> items) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF00A3A3),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...items,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailItem(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.year}년 ${date.month}월 ${date.day}일';
-  }
-
-  Future<void> _applyToJob(JobPosting job) async {
-    // 지원 확인 다이얼로그
-    final shouldApply = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('지원 확인'),
-        content: Text('${job.companyName}의 "${job.title}" 공고에 지원하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00A3A3),
-            ),
-            child: const Text('지원하기', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldApply != true) return;
-
-    // 로딩 다이얼로그
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('지원 중...'),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      final result = await JobApiService.applyToJob(job.id);
-
-      if (mounted) {
-        Navigator.pop(context); // 로딩 다이얼로그 닫기
-        Navigator.pop(context); // 상세 다이얼로그 닫기
-
-        if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? '지원이 완료되었습니다.'),
-              backgroundColor: const Color(0xFF00A3A3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['error'] ?? '지원에 실패했습니다.'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // 로딩 다이얼로그 닫기
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('지원 중 오류가 발생했습니다: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
   }
 
   void _showSearchDialog() {
+    String tempSearchQuery = _searchQuery;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -972,19 +714,29 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
           ),
         ),
         content: TextField(
+          controller: TextEditingController(text: tempSearchQuery),
+          autofocus: true,
           decoration: InputDecoration(
-            hintText: '검색어를 입력하세요',
+            hintText: '회사명, 직무 등을 검색하세요',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF00A3A3)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF00A3A3)),
+              borderSide: const BorderSide(color: Color(0xFF00A3A3), width: 2),
             ),
+            prefixIcon: const Icon(Icons.search, color: Color(0xFF00A3A3)),
           ),
           onChanged: (value) {
-            _searchQuery = value;
+            tempSearchQuery = value;
+          },
+          onSubmitted: (value) {
+            Navigator.pop(context);
+            setState(() {
+              _searchQuery = value;
+            });
+            _loadJobPostings(isRefresh: true);
           },
         ),
         actions: [
@@ -998,6 +750,9 @@ class _JejuJobListScreenState extends State<JejuJobListScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
+              setState(() {
+                _searchQuery = tempSearchQuery;
+              });
               _loadJobPostings(isRefresh: true);
             },
             style: ElevatedButton.styleFrom(

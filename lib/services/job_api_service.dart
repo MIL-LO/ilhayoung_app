@@ -1,13 +1,12 @@
-// lib/services/job_api_service.dart
+// lib/services/job_api_service.dart - 정리된 채용공고 API 서비스
 
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/job_posting_model.dart';
-import '../core/constants/app_constants.dart';
-import 'auth_service.dart';
 
 class JobApiService {
-  static const String _baseUrl = AppConstants.baseUrl;
+  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
 
   /// 채용공고 목록 조회
   static Future<Map<String, dynamic>> getJobPostings({
@@ -19,59 +18,75 @@ class JobApiService {
     int? minSalary,
     int? maxSalary,
     String? jobType,
-    String? sortBy = 'createdAt',
-    String? sortDirection = 'desc',
+    String sortBy = 'createdAt',
+    String sortDirection = 'desc',
   }) async {
     try {
+      print('=== 채용공고 목록 조회 API 호출 ===');
+
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access_token');
+
       // 쿼리 파라미터 구성
       final queryParams = <String, String>{
         'page': page.toString(),
         'size': size.toString(),
-        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
-        if (location != null && location != '전체' && location != '제주 전체') 'location': location,
-        if (workPeriod != null) 'workPeriod': workPeriod,
-        if (minSalary != null) 'minSalary': minSalary.toString(),
-        if (maxSalary != null) 'maxSalary': maxSalary.toString(),
-        if (jobType != null && jobType != '전체') 'jobType': jobType,
-        if (sortBy != null) 'sortBy': sortBy,
-        if (sortDirection != null) 'sortDirection': sortDirection,
+        'sortBy': sortBy,
+        'sortDirection': sortDirection,
       };
 
-      // URI 생성
-      final uri = Uri.parse('$_baseUrl/api/v1/recruits').replace(
-        queryParameters: queryParams,
-      );
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (location != null && location != '제주 전체' && location != '전체') {
+        queryParams['location'] = location;
+      }
+      if (workPeriod != null) {
+        queryParams['workPeriod'] = workPeriod;
+      }
+      if (minSalary != null) {
+        queryParams['minSalary'] = minSalary.toString();
+      }
+      if (maxSalary != null) {
+        queryParams['maxSalary'] = maxSalary.toString();
+      }
+      if (jobType != null && jobType != '전체') {
+        queryParams['jobType'] = jobType;
+      }
 
-      print('=== 채용공고 목록 조회 API 호출 ===');
-      print('URL: $uri');
+      final uri = Uri.parse('$baseUrl/recruits').replace(queryParameters: queryParams);
+      print('API URL: $uri');
       print('쿼리 파라미터: $queryParams');
 
-      // 헤더 설정
-      final headers = await _getHeaders();
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
 
-      // API 호출
+      if (accessToken != null) {
+        headers['Authorization'] = 'Bearer $accessToken';
+      }
+
       final response = await http.get(uri, headers: headers);
 
       print('응답 상태 코드: ${response.statusCode}');
       print('응답 본문: ${response.body}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        final jsonResponse = json.decode(response.body);
 
-        // API 응답 구조 확인
         if (jsonResponse['code'] == 'SUCCESS' && jsonResponse['data'] != null) {
           final data = jsonResponse['data'];
+          final content = data['content'] as List;
 
-          // JobPosting 모델로 변환
+          // JobPosting 객체 리스트로 변환
           final List<JobPosting> jobPostings = [];
-          if (data['content'] != null) {
-            for (var item in data['content']) {
-              try {
-                jobPostings.add(JobPosting.fromJson(item));
-              } catch (e) {
-                print('JobPosting 변환 오류: $e');
-                print('문제가 된 데이터: $item');
-              }
+          for (var item in content) {
+            try {
+              jobPostings.add(JobPosting.fromJson(item));
+            } catch (e) {
+              print('JobPosting 변환 오류: $e');
+              print('문제가 된 데이터: $item');
             }
           }
 
@@ -84,24 +99,23 @@ class JobApiService {
               'currentPage': data['number'] ?? 0,
               'pageSize': data['size'] ?? 0,
               'hasNext': !(data['last'] ?? true),
-              'hasPrevious': !(data['first'] ?? true),
+              'hasPrevious': !(data['first'] ?? false),
             },
-            'message': '채용공고 목록을 성공적으로 조회했습니다.',
           };
         } else {
           return {
             'success': false,
-            'error': jsonResponse['message'] ?? '알 수 없는 오류가 발생했습니다.',
+            'error': jsonResponse['message'] ?? '채용공고를 불러오는데 실패했습니다',
           };
         }
       } else {
         return {
           'success': false,
-          'error': '서버 오류가 발생했습니다. (${response.statusCode})',
+          'error': '서버 오류가 발생했습니다 (${response.statusCode})',
         };
       }
     } catch (e) {
-      print('채용공고 목록 조회 API 오류: $e');
+      print('❌ 채용공고 목록 조회 예외: $e');
       return {
         'success': false,
         'error': '네트워크 오류가 발생했습니다: $e',
@@ -110,13 +124,25 @@ class JobApiService {
   }
 
   /// 채용공고 상세 조회
-  static Future<Map<String, dynamic>> getJobPostingDetail(String jobId) async {
+  static Future<Map<String, dynamic>> getJobDetail(String recruitId) async {
     try {
-      final uri = Uri.parse('$_baseUrl/api/v1/recruits/$jobId');
-      final headers = await _getHeaders();
-
       print('=== 채용공고 상세 조회 API 호출 ===');
-      print('URL: $uri');
+      print('공고 ID: $recruitId');
+
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access_token');
+
+      final uri = Uri.parse('$baseUrl/recruits/$recruitId');
+      print('API URL: $uri');
+
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      if (accessToken != null) {
+        headers['Authorization'] = 'Bearer $accessToken';
+      }
 
       final response = await http.get(uri, headers: headers);
 
@@ -124,30 +150,27 @@ class JobApiService {
       print('응답 본문: ${response.body}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        final jsonResponse = json.decode(response.body);
 
-        if (jsonResponse['code'] == 'SUCCESS' && jsonResponse['data'] != null) {
-          final jobPosting = JobPosting.fromJson(jsonResponse['data']);
-
+        if (jsonResponse['code'] == 'SUCCESS') {
           return {
             'success': true,
-            'data': jobPosting,
-            'message': '채용공고 상세 정보를 성공적으로 조회했습니다.',
+            'data': jsonResponse['data'],
           };
         } else {
           return {
             'success': false,
-            'error': jsonResponse['message'] ?? '알 수 없는 오류가 발생했습니다.',
+            'error': jsonResponse['message'] ?? '상세 정보를 불러오는데 실패했습니다',
           };
         }
       } else {
         return {
           'success': false,
-          'error': '서버 오류가 발생했습니다. (${response.statusCode})',
+          'error': '서버 오류가 발생했습니다 (${response.statusCode})',
         };
       }
     } catch (e) {
-      print('채용공고 상세 조회 API 오류: $e');
+      print('❌ 채용공고 상세 조회 예외: $e');
       return {
         'success': false,
         'error': '네트워크 오류가 발생했습니다: $e',
@@ -156,61 +179,71 @@ class JobApiService {
   }
 
   /// 채용공고 지원
-  static Future<Map<String, dynamic>> applyToJob(String jobId) async {
+  static Future<Map<String, dynamic>> applyToJob(String recruitId) async {
     try {
-      final uri = Uri.parse('$_baseUrl/api/v1/recruits/$jobId/apply');
-      final headers = await _getHeaders();
-
       print('=== 채용공고 지원 API 호출 ===');
-      print('URL: $uri');
+      print('공고 ID: $recruitId');
 
-      final response = await http.post(uri, headers: headers);
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access_token');
+
+      if (accessToken == null) {
+        return {
+          'success': false,
+          'error': '로그인이 필요합니다',
+        };
+      }
+
+      final uri = Uri.parse('$baseUrl/recruits/$recruitId/apply');
+      print('API URL: $uri');
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
 
       print('응답 상태 코드: ${response.statusCode}');
       print('응답 본문: ${response.body}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        final jsonResponse = json.decode(response.body);
 
         if (jsonResponse['code'] == 'SUCCESS') {
           return {
             'success': true,
-            'message': jsonResponse['message'] ?? '지원이 완료되었습니다.',
+            'message': jsonResponse['message'] ?? '지원이 완료되었습니다',
+            'data': jsonResponse['data'],
           };
         } else {
           return {
             'success': false,
-            'error': jsonResponse['message'] ?? '지원에 실패했습니다.',
+            'error': jsonResponse['message'] ?? '지원에 실패했습니다',
           };
         }
       } else {
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['message'] ?? '서버 오류가 발생했습니다 (${response.statusCode})';
+        } catch (e) {
+          errorMessage = '서버 오류가 발생했습니다 (${response.statusCode})';
+        }
+
         return {
           'success': false,
-          'error': '서버 오류가 발생했습니다. (${response.statusCode})',
+          'error': errorMessage,
         };
       }
     } catch (e) {
-      print('채용공고 지원 API 오류: $e');
+      print('❌ 채용공고 지원 예외: $e');
       return {
         'success': false,
         'error': '네트워크 오류가 발생했습니다: $e',
       };
     }
-  }
-
-  /// 헤더 생성 (인증 토큰 포함)
-  static Future<Map<String, String>> _getHeaders() async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    // 인증 토큰 추가
-    final token = await AuthService.getAccessToken();
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    return headers;
   }
 }
