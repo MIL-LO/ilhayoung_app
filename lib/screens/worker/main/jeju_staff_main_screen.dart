@@ -1,3 +1,5 @@
+// lib/screens/worker/main/jeju_staff_main_screen.dart - API 연동된 근무관리 화면
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,12 +7,17 @@ import 'package:flutter/services.dart';
 import '../../../components/common/unified_app_header.dart';
 import '../../../components/work/work_calendar.dart';
 import '../../../components/work/work_schedule_card.dart';
-import '../../../components/work/work_filter_toggle.dart';
+
+// 서비스 imports
+import '../../../services/user_info_service.dart';
+import '../../../services/work_schedule_service.dart';
+
+// 모델 imports
 import '../../../models/work_schedule.dart';
-import '../../../models/evaluation_models.dart';
-import '../../../services/mock_schedule_service.dart';
+
+// 화면 imports
 import '../../evaluation/workplace_evaluation_screen.dart';
-import '../../evaluation/orum_index_screen.dart'; // 오름지수 화면 import 추가
+import '../../evaluation/orum_index_screen.dart';
 
 class JejuStaffMainScreen extends StatefulWidget {
   final Function? onLogout;
@@ -27,22 +34,25 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
+  // 날짜 관련
   DateTime _selectedDate = DateTime.now();
   DateTime _currentMonth = DateTime.now();
-  bool _showMyWorkOnly = true; // 항상 내 근무만 표시
 
+  // 데이터 상태
   List<WorkSchedule> _allSchedules = [];
   List<WorkSchedule> _filteredSchedules = [];
   List<WorkSchedule> _selectedDateSchedules = [];
 
-  // 평가 완료된 근무 기록 (실제로는 DB에서 관리)
-  Set<String> _evaluatedSchedules = {};
+  // 사용자 정보
+  String _userName = '';
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _initAnimations();
-    _loadSchedules();
+    _loadInitialData();
   }
 
   void _initAnimations() {
@@ -60,31 +70,76 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     _fadeController.forward();
   }
 
-  void _loadSchedules() {
+  Future<void> _loadInitialData() async {
     setState(() {
-      _allSchedules = MockScheduleService.instance.generateSchedules(months: 3);
-      _updateFilteredSchedules();
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      // 사용자 정보 로드
+      await _loadUserInfo();
+
+      // 근무 스케줄 로드
+      await _loadWorkSchedules();
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '데이터를 불러오는데 실패했습니다';
+      });
+    }
+  }
+
+  Future<void> _loadUserInfo() async {
+    try {
+      final userInfo = await UserInfoService.getUserInfo();
+      if (userInfo != null) {
+        setState(() {
+          _userName = userInfo['name'] ?? '사용자';
+        });
+        print('✅ 사용자 정보 로드 성공: $_userName');
+      }
+    } catch (e) {
+      print('❌ 사용자 정보 로드 실패: $e');
+      setState(() {
+        _userName = '사용자';
+      });
+    }
+  }
+
+  Future<void> _loadWorkSchedules() async {
+    try {
+      // TODO: 실제 근무 스케줄 API 연동
+      // 현재는 빈 리스트로 초기화
+      setState(() {
+        _allSchedules = [];
+        _updateFilteredSchedules();
+      });
+      print('✅ 근무 스케줄 로드 완료 (${_allSchedules.length}개)');
+    } catch (e) {
+      print('❌ 근무 스케줄 로드 실패: $e');
+      setState(() {
+        _allSchedules = [];
+        _updateFilteredSchedules();
+      });
+    }
   }
 
   void _updateFilteredSchedules() {
     // 월별 필터링
-    final monthSchedules = MockScheduleService.instance.getSchedulesForMonth(
-      _allSchedules,
-      _currentMonth
-    );
-
-    // 내 근무 필터링
-    _filteredSchedules = MockScheduleService.instance.filterMyWork(
-      monthSchedules,
-      _showMyWorkOnly
-    );
+    _filteredSchedules = _allSchedules.where((schedule) {
+      return schedule.date.year == _currentMonth.year &&
+          schedule.date.month == _currentMonth.month;
+    }).toList();
 
     // 선택된 날짜의 스케줄
-    _selectedDateSchedules = MockScheduleService.instance.getSchedulesForDate(
-      _filteredSchedules,
-      _selectedDate
-    );
+    _selectedDateSchedules = _filteredSchedules.where((schedule) {
+      return _isSameDay(schedule.date, _selectedDate);
+    }).toList();
   }
 
   @override
@@ -99,7 +154,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       backgroundColor: const Color(0xFFF8FFFE),
       appBar: UnifiedAppHeader(
         title: '근무관리',
-        subtitle: '내 스케줄을 확인하세요',
+        subtitle: _userName.isNotEmpty ? '$_userName님의 스케줄' : '내 스케줄을 확인하세요',
         emoji: '🗓️',
         actions: [
           IconButton(
@@ -112,47 +167,174 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             onPressed: _goToToday,
             tooltip: '오늘로 이동',
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFF00A3A3), size: 20),
+            onPressed: _loadWorkSchedules,
+            tooltip: '새로고침',
+          ),
         ],
       ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: CustomScrollView(
-          slivers: [
-            // 캘린더
-            SliverToBoxAdapter(
-              child: WorkCalendar(
-                currentMonth: _currentMonth,
-                selectedDate: _selectedDate,
-                schedules: _filteredSchedules,
-                onDateSelected: _onDateSelected,
-                onMonthChanged: _onMonthChanged,
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00A3A3)),
+            ),
+            SizedBox(height: 16),
+            Text(
+              '근무 정보를 불러오는 중...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Color(0xFF00A3A3),
               ),
-            ),
-
-            // 간격
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 16),
-            ),
-
-            // 선택된 날짜 정보
-            SliverToBoxAdapter(
-              child: _buildSelectedDateHeader(),
-            ),
-
-            // 간격
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 8),
-            ),
-
-            // 선택된 날짜의 스케줄 리스트
-            _buildScheduleSliverList(),
-
-            // 하단 여백
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 100),
             ),
           ],
         ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.red[400],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadInitialData,
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00A3A3),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: CustomScrollView(
+        slivers: [
+          // 캘린더 (현재는 기본 캘린더만 표시)
+          SliverToBoxAdapter(
+            child: _buildSimpleCalendar(),
+          ),
+
+          // 간격
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 16),
+          ),
+
+          // 선택된 날짜 정보
+          SliverToBoxAdapter(
+            child: _buildSelectedDateHeader(),
+          ),
+
+          // 간격
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 8),
+          ),
+
+          // 선택된 날짜의 스케줄 리스트
+          _buildScheduleSliverList(),
+
+          // 하단 여백
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 100),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleCalendar() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // 월 헤더
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                onPressed: () => _changeMonth(-1),
+                icon: const Icon(Icons.chevron_left, color: Color(0xFF00A3A3)),
+              ),
+              Text(
+                '${_currentMonth.year}년 ${_currentMonth.month}월',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF00A3A3),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _changeMonth(1),
+                icon: const Icon(Icons.chevron_right, color: Color(0xFF00A3A3)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 현재는 간단한 달력 표시
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00A3A3).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.calendar_today, color: Color(0xFF00A3A3)),
+                SizedBox(width: 8),
+                Text(
+                  '근무 스케줄 API 연동 준비 중',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF00A3A3),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -217,8 +399,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: _selectedDateSchedules.isEmpty
-                ? Colors.grey[100]
-                : const Color(0xFF00A3A3).withOpacity(0.1),
+                  ? Colors.grey[100]
+                  : const Color(0xFF00A3A3).withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -227,8 +409,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: _selectedDateSchedules.isEmpty
-                  ? Colors.grey[600]
-                  : const Color(0xFF00A3A3),
+                    ? Colors.grey[600]
+                    : const Color(0xFF00A3A3),
               ),
             ),
           ),
@@ -254,7 +436,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '선택한 날짜에 일정이 없습니다',
+                  '선택한 날짜에 근무 일정이 없습니다',
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -263,7 +445,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '다른 날짜를 선택해보세요',
+                  '새로운 일자리에 지원해보세요!',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[500],
@@ -278,9 +460,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
     return SliverList(
       delegate: SliverChildBuilderDelegate(
-        (context, index) {
+            (context, index) {
           final schedule = _selectedDateSchedules[index];
-          final isEvaluated = _evaluatedSchedules.contains(schedule.id.toString());
 
           return Padding(
             padding: EdgeInsets.only(
@@ -291,9 +472,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             child: WorkScheduleCard(
               schedule: schedule,
               onTap: () => _showScheduleDetail(schedule),
-              onEvaluate: (schedule.status == 'completed' &&
-                          schedule.isMyWork &&
-                          !isEvaluated)
+              onEvaluate: schedule.canEvaluate
                   ? () => _showWorkplaceEvaluation(schedule)
                   : null,
             ),
@@ -305,25 +484,15 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
   }
 
   // 이벤트 핸들러들
-  void _onDateSelected(DateTime date) {
+  void _changeMonth(int direction) {
     setState(() {
-      _selectedDate = date;
-      _selectedDateSchedules = MockScheduleService.instance.getSchedulesForDate(
-        _filteredSchedules,
-        date
+      _currentMonth = DateTime(
+        _currentMonth.year,
+        _currentMonth.month + direction,
+        1,
       );
-    });
-  }
-
-  void _onMonthChanged(DateTime month) {
-    setState(() {
-      _currentMonth = month;
       _updateFilteredSchedules();
     });
-  }
-
-  void _onToggleFilter(bool showMyWorkOnly) {
-    // 더 이상 사용하지 않음 - 항상 내 근무만 표시
   }
 
   void _goToToday() {
@@ -336,7 +505,6 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
   }
 
   void _showOrumIndex() {
-    // 오름지수 화면으로 이동 (라우팅 대신 직접 이동)
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -346,7 +514,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
   }
 
   void _showWorkplaceEvaluation(WorkSchedule schedule) async {
-    final result = await Navigator.push<WorkplaceEvaluation>(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => WorkplaceEvaluationScreen(
@@ -359,27 +527,21 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     );
 
     if (result != null) {
-      // 평가 완료 처리
-      setState(() {
-        _evaluatedSchedules.add(schedule.id.toString());
-      });
-
-      // 성공 메시지 (이미 평가 화면에서 표시되므로 생략 가능)
+      // 평가 완료 후 스케줄 새로고침
+      _loadWorkSchedules();
     }
   }
 
   void _showScheduleDetail(WorkSchedule schedule) {
-    final isEvaluated = _evaluatedSchedules.contains(schedule.id.toString());
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => _buildScheduleDetailSheet(schedule, isEvaluated),
+      builder: (context) => _buildScheduleDetailSheet(schedule),
     );
   }
 
-  Widget _buildScheduleDetailSheet(WorkSchedule schedule, bool isEvaluated) {
+  Widget _buildScheduleDetailSheet(WorkSchedule schedule) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.6,
       decoration: const BoxDecoration(
@@ -469,158 +631,34 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                     '상태',
                     schedule.statusText,
                   ),
-                  if (schedule.isMyWork)
-                    _buildDetailItem(
-                      Icons.person,
-                      '구분',
-                      '내 근무',
-                    ),
-
-                  // 평가 상태 표시
-                  if (schedule.status == 'completed' && schedule.isMyWork) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isEvaluated
-                            ? const Color(0xFF4CAF50).withOpacity(0.1)
-                            : const Color(0xFFFFD700).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isEvaluated
-                              ? const Color(0xFF4CAF50)
-                              : const Color(0xFFFFD700),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isEvaluated ? Icons.check_circle : Icons.star_border,
-                            color: isEvaluated
-                                ? const Color(0xFF4CAF50)
-                                : const Color(0xFFFFD700),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              isEvaluated
-                                  ? '평가가 완료되었습니다'
-                                  : '고용주 평가를 완료해주세요',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: isEvaluated
-                                    ? const Color(0xFF4CAF50)
-                                    : const Color(0xFFFFD700),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
           ),
 
-          // 액션 버튼들 - 수정된 부분
+          // 액션 버튼 (현재는 기본 닫기만)
           Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                if (schedule.status == 'scheduled') ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 48, // 고정 높이 설정
-                          child: OutlinedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _showCancelDialog(schedule);
-                            },
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.grey[400]!),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              '일정 취소',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SizedBox(
-                          height: 48, // 고정 높이 설정
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _showEditDialog(schedule);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF00A3A3),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              '일정 수정',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00A3A3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ] else if (schedule.status == 'completed' &&
-                          schedule.isMyWork &&
-                          !isEvaluated) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48, // 고정 높이 설정
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showWorkplaceEvaluation(schedule);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFD700),
-                        foregroundColor: Colors.black87,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.star, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            '평가하기',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                ),
+                child: const Text(
+                  '확인',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
           ),
         ],
@@ -660,44 +698,6 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     );
   }
 
-  void _showCancelDialog(WorkSchedule schedule) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('일정 취소'),
-        content: Text('${schedule.company}의 근무 일정을 취소하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('아니요'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('일정이 취소되었습니다'),
-                  backgroundColor: Color(0xFFFF6B35),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('네, 취소합니다', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditDialog(WorkSchedule schedule) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('일정 수정 기능 준비 중입니다'),
-        backgroundColor: Color(0xFF00A3A3),
-      ),
-    );
-  }
-
   String _getWeekday(DateTime date) {
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     return '${weekdays[date.weekday % 7]}요일';
@@ -705,7 +705,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
   bool _isSameDay(DateTime date1, DateTime date2) {
     return date1.year == date2.year &&
-           date1.month == date2.month &&
-           date1.day == date2.day;
+        date1.month == date2.month &&
+        date1.day == date2.day;
   }
 }
