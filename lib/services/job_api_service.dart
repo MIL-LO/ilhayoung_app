@@ -178,7 +178,7 @@ class JobApiService {
     }
   }
 
-  /// 채용공고 지원
+  /// 채용공고 지원 (수정된 API)
   static Future<Map<String, dynamic>> applyToJob(String recruitId) async {
     try {
       print('=== 채용공고 지원 API 호출 ===');
@@ -194,8 +194,30 @@ class JobApiService {
         };
       }
 
-      final uri = Uri.parse('$baseUrl/recruits/$recruitId/apply');
+      // 사용자 정보 조회 (지원에 필요한 정보)
+      final userInfoResult = await _getUserInfoForApplication();
+      if (!userInfoResult['success']) {
+        return {
+          'success': false,
+          'error': userInfoResult['error'] ?? '사용자 정보를 불러올 수 없습니다',
+        };
+      }
+
+      final userInfo = userInfoResult['data'];
+
+      // 지원 데이터 구성
+      final applicationData = {
+        'name': userInfo['name'] ?? '',
+        'birthDate': userInfo['birthDate'] ?? '',
+        'contact': userInfo['phone'] ?? '',
+        'address': userInfo['address'] ?? '',
+        'experience': userInfo['experience'] ?? '',
+        'climateScore': userInfo['climateScore'] ?? 85, // 기본값
+      };
+
+      final uri = Uri.parse('$baseUrl/recruits/$recruitId/applications');
       print('API URL: $uri');
+      print('지원 데이터: $applicationData');
 
       final response = await http.post(
         uri,
@@ -204,6 +226,7 @@ class JobApiService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
+        body: json.encode(applicationData),
       );
 
       print('응답 상태 코드: ${response.statusCode}');
@@ -240,6 +263,63 @@ class JobApiService {
       }
     } catch (e) {
       print('❌ 채용공고 지원 예외: $e');
+      return {
+        'success': false,
+        'error': '네트워크 오류가 발생했습니다: $e',
+      };
+    }
+  }
+
+  /// 지원에 필요한 사용자 정보 조회 (내부 메서드)
+  static Future<Map<String, dynamic>> _getUserInfoForApplication() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access_token');
+
+      if (accessToken == null) {
+        return {
+          'success': false,
+          'error': '로그인이 필요합니다',
+        };
+      }
+
+      final uri = Uri.parse('$baseUrl/users/me');
+      print('사용자 정보 조회 API URL: $uri');
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      print('사용자 정보 조회 응답 상태: ${response.statusCode}');
+      print('사용자 정보 조회 응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+
+        if (jsonResponse['code'] == 'SUCCESS') {
+          return {
+            'success': true,
+            'data': jsonResponse['data'],
+          };
+        } else {
+          return {
+            'success': false,
+            'error': jsonResponse['message'] ?? '사용자 정보를 불러올 수 없습니다',
+          };
+        }
+      } else {
+        return {
+          'success': false,
+          'error': '사용자 정보 조회에 실패했습니다 (${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('❌ 사용자 정보 조회 예외: $e');
       return {
         'success': false,
         'error': '네트워크 오류가 발생했습니다: $e',

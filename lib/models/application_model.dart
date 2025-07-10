@@ -1,10 +1,10 @@
-// lib/models/application_model.dart - 지원내역 모델
+// lib/models/application_model.dart - 실제 API에 맞춘 지원내역 모델
 
 import 'package:flutter/material.dart';
 
 enum ApplicationStatus {
   pending,    // 대기중
-  reviewing,  // 검토중
+  reviewing,  // 검토중 (REVIEWING)
   interview,  // 면접
   offer,      // 제안
   hired,      // 채용확정
@@ -14,84 +14,60 @@ enum ApplicationStatus {
 
 class JobApplication {
   final String id;
-  final String recruitId;
-  final String jobTitle;
-  final String company;
-  final String companyLocation;
-  final int salary;
+  final String recruitTitle;
+  final String companyName;
   final ApplicationStatus status;
   final DateTime appliedAt;
-  final DateTime? updatedAt;
-  final String? message;
-  final String? interviewDate;
-  final String? offerDetails;
+  final DateTime recruitDeadline;
 
   JobApplication({
     required this.id,
-    required this.recruitId,
-    required this.jobTitle,
-    required this.company,
-    required this.companyLocation,
-    required this.salary,
+    required this.recruitTitle,
+    required this.companyName,
     required this.status,
     required this.appliedAt,
-    this.updatedAt,
-    this.message,
-    this.interviewDate,
-    this.offerDetails,
+    required this.recruitDeadline,
   });
 
   factory JobApplication.fromJson(Map<String, dynamic> json) {
     return JobApplication(
       id: json['id']?.toString() ?? '',
-      recruitId: json['recruitId']?.toString() ?? '',
-      jobTitle: json['jobTitle']?.toString() ?? '',
-      company: json['company']?.toString() ?? '',
-      companyLocation: json['companyLocation']?.toString() ?? '',
-      salary: json['salary']?.toInt() ?? 0,
+      recruitTitle: json['recruitTitle']?.toString() ?? '',
+      companyName: json['companyName']?.toString() ?? '',
       status: _parseStatus(json['status']?.toString()),
       appliedAt: _parseDateTime(json['appliedAt']),
-      updatedAt: _parseDateTime(json['updatedAt']),
-      message: json['message']?.toString(),
-      interviewDate: json['interviewDate']?.toString(),
-      offerDetails: json['offerDetails']?.toString(),
+      recruitDeadline: _parseDateTime(json['recruitDeadline']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'recruitId': recruitId,
-      'jobTitle': jobTitle,
-      'company': company,
-      'companyLocation': companyLocation,
-      'salary': salary,
-      'status': status.name,
+      'recruitTitle': recruitTitle,
+      'companyName': companyName,
+      'status': status.apiValue,
       'appliedAt': appliedAt.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-      'message': message,
-      'interviewDate': interviewDate,
-      'offerDetails': offerDetails,
+      'recruitDeadline': recruitDeadline.toIso8601String(),
     };
   }
 
   static ApplicationStatus _parseStatus(String? statusString) {
     if (statusString == null) return ApplicationStatus.pending;
 
-    switch (statusString.toLowerCase()) {
-      case 'pending':
+    switch (statusString.toUpperCase()) {
+      case 'PENDING':
         return ApplicationStatus.pending;
-      case 'reviewing':
+      case 'REVIEWING':
         return ApplicationStatus.reviewing;
-      case 'interview':
+      case 'INTERVIEW':
         return ApplicationStatus.interview;
-      case 'offer':
+      case 'OFFER':
         return ApplicationStatus.offer;
-      case 'hired':
+      case 'HIRED':
         return ApplicationStatus.hired;
-      case 'rejected':
+      case 'REJECTED':
         return ApplicationStatus.rejected;
-      case 'cancelled':
+      case 'CANCELLED':
         return ApplicationStatus.cancelled;
       default:
         return ApplicationStatus.pending;
@@ -166,24 +142,6 @@ class JobApplication {
     }
   }
 
-  String get formattedSalary {
-    if (salary == 0) return '급여 정보 없음';
-
-    if (salary >= 10000) {
-      // 월급인 경우 (10,000원 이상)
-      return '월 ${salary.toString().replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-            (Match m) => '${m[1]},',
-      )}원';
-    } else {
-      // 시급인 경우
-      return '시급 ${salary.toString().replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-            (Match m) => '${m[1]},',
-      )}원';
-    }
-  }
-
   String get formattedAppliedDate {
     final now = DateTime.now();
     final diff = now.difference(appliedAt);
@@ -199,6 +157,21 @@ class JobApplication {
     } else {
       return '${appliedAt.year}.${appliedAt.month.toString().padLeft(2, '0')}.${appliedAt.day.toString().padLeft(2, '0')}';
     }
+  }
+
+  String get formattedDeadline {
+    return '${recruitDeadline.year}.${recruitDeadline.month.toString().padLeft(2, '0')}.${recruitDeadline.day.toString().padLeft(2, '0')}';
+  }
+
+  int get daysUntilDeadline {
+    final now = DateTime.now();
+    final deadline = DateTime(recruitDeadline.year, recruitDeadline.month, recruitDeadline.day);
+    final today = DateTime(now.year, now.month, now.day);
+    return deadline.difference(today).inDays;
+  }
+
+  bool get isDeadlinePassed {
+    return daysUntilDeadline < 0;
   }
 
   bool get canCancel {
@@ -222,6 +195,72 @@ class JobApplication {
         return '지원 취소';
       default:
         return '';
+    }
+  }
+
+  // 편의를 위한 getter들
+  String get jobTitle => recruitTitle;
+  String get company => companyName;
+  String get companyLocation => '위치 정보 없음'; // API에 없는 필드
+  String get formattedSalary => '급여 정보 없음'; // API에 없는 필드
+}
+
+// ApplicationStatus 확장
+extension ApplicationStatusExtension on ApplicationStatus {
+  String get displayName {
+    switch (this) {
+      case ApplicationStatus.pending:
+        return '대기중';
+      case ApplicationStatus.reviewing:
+        return '검토중';
+      case ApplicationStatus.interview:
+        return '면접';
+      case ApplicationStatus.offer:
+        return '제안';
+      case ApplicationStatus.hired:
+        return '채용확정';
+      case ApplicationStatus.rejected:
+        return '거절됨';
+      case ApplicationStatus.cancelled:
+        return '취소됨';
+    }
+  }
+
+  String get apiValue {
+    switch (this) {
+      case ApplicationStatus.pending:
+        return 'PENDING';
+      case ApplicationStatus.reviewing:
+        return 'REVIEWING';
+      case ApplicationStatus.interview:
+        return 'INTERVIEW';
+      case ApplicationStatus.offer:
+        return 'OFFER';
+      case ApplicationStatus.hired:
+        return 'HIRED';
+      case ApplicationStatus.rejected:
+        return 'REJECTED';
+      case ApplicationStatus.cancelled:
+        return 'CANCELLED';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case ApplicationStatus.pending:
+        return Colors.orange[600]!;
+      case ApplicationStatus.reviewing:
+        return Colors.blue[600]!;
+      case ApplicationStatus.interview:
+        return Colors.purple[600]!;
+      case ApplicationStatus.offer:
+        return Colors.green[600]!;
+      case ApplicationStatus.hired:
+        return const Color(0xFF00A3A3);
+      case ApplicationStatus.rejected:
+        return Colors.red[600]!;
+      case ApplicationStatus.cancelled:
+        return Colors.grey[600]!;
     }
   }
 }
