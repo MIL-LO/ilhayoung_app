@@ -669,21 +669,4 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   String _formatDate(DateTime date) {
     return '${date.year}년 ${date.month}월 ${date.day}일';
   }
-
-  /// 정적 메서드로 바텀시트 표시
-  static void show(
-      BuildContext context,
-      JobPosting job, {
-        Function(String)? onApply,
-      }) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => JobDetailSheet(
-        job: job,
-        onApply: onApply,
-      ),
-    );
-  }
 }

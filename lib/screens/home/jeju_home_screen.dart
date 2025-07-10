@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 // 컴포넌트 imports
 import '../../components/common/unified_app_header.dart';
+import '../../components/home/featured_jobs_widget.dart';
 import '../../components/work/work_status_bar.dart';
 import '../../components/home/upcoming_work_card.dart';
 import '../../components/home/work_stats_widget.dart';
@@ -381,6 +382,17 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
                 nextPaymentDate: _nextPaymentDate,
               ),
             ),
+            SliverToBoxAdapter(
+              child: FeaturedJobsWidget(
+                title: "🔥 지금 인기있는 일자리",
+                subtitle: "놓치기 전에 빨리 지원하세요!",
+                onSeeAll: () {
+                  // 채용공고 페이지로 이동 (선택사항)
+                  // Navigator.pushNamed(context, '/jobs');
+                },
+              ),
+            ),
+
 
             // 최근 지원 현황 (새로 추가)
             if (_recentApplications.isNotEmpty)
