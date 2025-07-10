@@ -168,7 +168,7 @@ class ApplicationApiService {
     }
   }
 
-  /// 지원 취소
+  /// 지원 취소 (수정된 API)
   static Future<Map<String, dynamic>> cancelApplication(String applicationId) async {
     try {
       print('=== 지원 취소 API 호출 ===');
@@ -184,10 +184,10 @@ class ApplicationApiService {
         };
       }
 
-      final uri = Uri.parse('$baseUrl/applications/$applicationId/cancel');
+      final uri = Uri.parse('$baseUrl/applications/$applicationId');
       print('API URL: $uri');
 
-      final response = await http.patch(
+      final response = await http.delete(
         uri,
         headers: {
           'Content-Type': 'application/json',
