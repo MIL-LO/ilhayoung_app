@@ -1,77 +1,76 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-    <key>CADisableMinimumFrameDurationOnPhone</key>
-    <true/>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>$(DEVELOPMENT_LANGUAGE)</string>
-    <key>CFBundleDisplayName</key>
-    <string>Ilhayoung App</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>ilhayoung_app</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>$(FLUTTER_BUILD_NAME)</string>
-    <key>CFBundleSignature</key>
-    <string>????</string>
-    <key>CFBundleVersion</key>
-    <string>$(FLUTTER_BUILD_NUMBER)</string>
-    <key>LSRequiresIPhoneOS</key>
-    <true/>
-    <key>UIApplicationSupportsIndirectInputEvents</key>
-    <true/>
-    <key>UILaunchStoryboardName</key>
-    <string>LaunchScreen</string>
-    <key>UIMainStoryboardFile</key>
-    <string>Main</string>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-       <string>UIInterfaceOrientationPortrait</string>
-       <string>UIInterfaceOrientationLandscapeLeft</string>
-       <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-       <string>UIInterfaceOrientationPortrait</string>
-       <string>UIInterfaceOrientationPortraitUpsideDown</string>
-       <string>UIInterfaceOrientationLandscapeLeft</string>
-       <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-
-    <!-- 카카오 SDK 설정 추가 -->
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>KAKAO</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <!-- 여기에 실제 카카오 앱 키를 입력하세요 -->
-                <string>kakaofb03d17c29c528ca587a8f2ac72345c0</string>
-            </array>
-        </dict>
-    </array>
-
-    <!-- 카카오톡 앱 설치 확인을 위한 설정 -->
-    <key>LSApplicationQueriesSchemes</key>
-    <array>
-        <string>kakaokompassauth</string>
-        <string>storykompassauth</string>
-        <string>kakaolink</string>
-        <string>kakaotalk</string>
-        <string>kakaostory</string>
-    </array>
-
-    <!-- 카카오 앱 키 설정 -->
-    <key>KAKAO_APP_KEY</key>
-    <string>fb03d17c29c528ca587a8f2ac72345c0</string>
-</dict>
+	<dict>
+		<key>CADisableMinimumFrameDurationOnPhone</key>
+		<true/>
+		<key>CFBundleDevelopmentRegion</key>
+		<string>$(DEVELOPMENT_LANGUAGE)</string>
+		<key>CFBundleDisplayName</key>
+		<string>일하영</string>
+		<key>CFBundleExecutable</key>
+		<string>$(EXECUTABLE_NAME)</string>
+		<key>CFBundleIdentifier</key>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+		<key>CFBundleInfoDictionaryVersion</key>
+		<string>6.0</string>
+		<key>CFBundleName</key>
+		<string>ilhayoung_app</string>
+		<key>CFBundlePackageType</key>
+		<string>APPL</string>
+		<key>CFBundleShortVersionString</key>
+		<string>$(FLUTTER_BUILD_NAME)</string>
+		<key>CFBundleSignature</key>
+		<string>????</string>
+		<key>CFBundleVersion</key>
+		<string>$(FLUTTER_BUILD_NUMBER)</string>
+		<key>LSRequiresIPhoneOS</key>
+		<true/>
+		<key>UIApplicationSupportsIndirectInputEvents</key>
+		<true/>
+		<key>UILaunchStoryboardName</key>
+		<string>LaunchScreen</string>
+		<key>UIMainStoryboardFile</key>
+		<string>Main</string>
+		<key>UISupportedInterfaceOrientations</key>
+		<array>
+			<string>UIInterfaceOrientationPortrait</string>
+			<string>UIInterfaceOrientationLandscapeLeft</string>
+			<string>UIInterfaceOrientationLandscapeRight</string>
+		</array>
+		<key>UISupportedInterfaceOrientations~ipad</key>
+		<array>
+			<string>UIInterfaceOrientationPortrait</string>
+			<string>UIInterfaceOrientationPortraitUpsideDown</string>
+			<string>UIInterfaceOrientationLandscapeLeft</string>
+			<string>UIInterfaceOrientationLandscapeRight</string>
+		</array>
+		<!-- 카카오 SDK 설정 추가 -->
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLName</key>
+				<string>KAKAO</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<!-- 여기에 실제 카카오 앱 키를 입력하세요 -->
+					<string>kakaofb03d17c29c528ca587a8f2ac72345c0</string>
+				</array>
+			</dict>
+		</array>
+		<!-- 카카오톡 앱 설치 확인을 위한 설정 -->
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>kakaokompassauth</string>
+			<string>storykompassauth</string>
+			<string>kakaolink</string>
+			<string>kakaotalk</string>
+			<string>kakaostory</string>
+		</array>
+		<!-- 카카오 앱 키 설정 -->
+		<key>KAKAO_APP_KEY</key>
+		<string>fb03d17c29c528ca587a8f2ac72345c0</string>
+		<key>UIStatusBarHidden</key>
+		<false/>
+	</dict>
 </plist>

@@ -31,11 +31,26 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.3.10
 
 flutter:
   uses-material-design: true
 
-  # Assets 설정 (필요시 주석 해제)
-  # assets:
-  #   - assets/images/
-  #   - assets/icons/
+  # Assets 설정 (주석 해제)
+  assets:
+    - assets/images/
+    - assets/icons/
+
+flutter_native_splash:
+  # 기본 설정만
+  color: "#F8FFFE"  # 배경색
+  image: assets/images/splash_logo.png  # 로고만
+
+  # 안드로이드 12+ 기본 설정
+  android_12:
+    color: "#F8FFFE"
+    icon_background_color: "#00A3A3"
+
+  # 플랫폼 설정
+  android: true
+  ios: true
