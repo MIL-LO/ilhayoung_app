@@ -51,6 +51,30 @@ class JobApplication {
     };
   }
 
+  // copyWith 메소드 추가
+  JobApplication copyWith({
+    String? id,
+    String? recruitTitle,
+    String? companyName,
+    ApplicationStatus? status,
+    DateTime? appliedAt,
+    DateTime? recruitDeadline,
+  }) {
+    return JobApplication(
+      id: id ?? this.id,
+      recruitTitle: recruitTitle ?? this.recruitTitle,
+      companyName: companyName ?? this.companyName,
+      status: status ?? this.status,
+      appliedAt: appliedAt ?? this.appliedAt,
+      recruitDeadline: recruitDeadline ?? this.recruitDeadline,
+    );
+  }
+
+  // 상태를 문자열로 업데이트하는 편의 메소드
+  JobApplication copyWithStatusString(String statusString) {
+    return copyWith(status: _parseStatus(statusString));
+  }
+
   static ApplicationStatus _parseStatus(String? statusString) {
     if (statusString == null) return ApplicationStatus.pending;
 

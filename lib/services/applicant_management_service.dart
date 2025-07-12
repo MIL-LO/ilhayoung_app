@@ -431,13 +431,56 @@ class JobApplicant {
   });
 
   factory JobApplicant.fromJson(Map<String, dynamic> json) {
+    String status = json['status']?.toString() ?? 'PENDING';
+
+    // API에서 오는 상태값을 UI에서 사용하는 값으로 매핑
+    switch (status.toUpperCase()) {
+      case 'APPLIED':
+        status = 'PENDING';
+        break;
+      case 'APPROVED':
+        status = 'HIRED';
+        break;
+    // 나머지는 그대로 사용
+    }
+
     return JobApplicant(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       contact: json['contact']?.toString() ?? '',
-      status: json['status']?.toString() ?? 'PENDING',
+      status: status,
       appliedAt: DateTime.tryParse(json['appliedAt']?.toString() ?? '') ?? DateTime.now(),
       climateScore: json['climateScore']?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'contact': contact,
+      'status': status,
+      'appliedAt': appliedAt.toIso8601String(),
+      'climateScore': climateScore,
+    };
+  }
+
+  // copyWith 메소드 추가
+  JobApplicant copyWith({
+    String? id,
+    String? name,
+    String? contact,
+    String? status,
+    DateTime? appliedAt,
+    int? climateScore,
+  }) {
+    return JobApplicant(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      contact: contact ?? this.contact,
+      status: status ?? this.status,
+      appliedAt: appliedAt ?? this.appliedAt,
+      climateScore: climateScore ?? this.climateScore,
     );
   }
 
@@ -447,6 +490,7 @@ class JobApplicant {
       case 'REVIEWING': return '검토 중';
       case 'INTERVIEW': return '면접 요청';
       case 'APPROVED': return '승인';
+      case 'HIRED': return '승인';
       case 'REJECTED': return '거절';
       default: return status;
     }
@@ -458,6 +502,7 @@ class JobApplicant {
       case 'REVIEWING': return const Color(0xFF2196F3);
       case 'INTERVIEW': return const Color(0xFF9C27B0);
       case 'APPROVED': return const Color(0xFF4CAF50);
+      case 'HIRED': return const Color(0xFF4CAF50);
       case 'REJECTED': return const Color(0xFFF44336);
       default: return const Color(0xFF757575);
     }
@@ -504,6 +549,20 @@ class ApplicantDetail {
       status: json['status']?.toString() ?? 'PENDING',
       appliedAt: DateTime.tryParse(json['appliedAt']?.toString() ?? '') ?? DateTime.now(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'birthDate': birthDate,
+      'contact': contact,
+      'address': address,
+      'experience': experience,
+      'climateScore': climateScore,
+      'status': status,
+      'appliedAt': appliedAt.toIso8601String(),
+    };
   }
 
   int get age {

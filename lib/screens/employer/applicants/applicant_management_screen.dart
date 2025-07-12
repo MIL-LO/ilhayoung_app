@@ -1,4 +1,4 @@
-// lib/screens/employer/applicants/applicant_management_screen.dart - 지원자 관리 화면
+// lib/screens/employer/applicants/applicant_management_screen.dart - 완전한 버전
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,13 +25,13 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
   Map<String, List<JobApplicant>> _applicantsByStatus = {};
   bool _isLoading = true;
 
-  final List<String> _statusList = ['ALL', 'PENDING', 'REVIEWING', 'INTERVIEW', 'APPROVED', 'REJECTED'];
+  final List<String> _statusList = ['ALL', 'PENDING', 'REVIEWING', 'INTERVIEW', 'HIRED', 'REJECTED'];
   final Map<String, String> _statusNames = {
     'ALL': '전체',
     'PENDING': '검토 대기',
     'REVIEWING': '검토 중',
     'INTERVIEW': '면접 요청',
-    'APPROVED': '승인',
+    'HIRED': '승인',
     'REJECTED': '거절',
   };
 
@@ -63,10 +63,10 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
           _allApplicants = applicants;
           _applicantsByStatus = {
             'ALL': applicants,
-            'PENDING': applicants.where((a) => a.status == 'PENDING').toList(),
+            'PENDING': applicants.where((a) => a.status == 'PENDING' || a.status == 'APPLIED').toList(),
             'REVIEWING': applicants.where((a) => a.status == 'REVIEWING').toList(),
             'INTERVIEW': applicants.where((a) => a.status == 'INTERVIEW').toList(),
-            'APPROVED': applicants.where((a) => a.status == 'APPROVED').toList(),
+            'HIRED': applicants.where((a) => a.status == 'HIRED' || a.status == 'APPROVED').toList(),
             'REJECTED': applicants.where((a) => a.status == 'REJECTED').toList(),
           };
         });
@@ -80,6 +80,28 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
         _isLoading = false;
       });
     }
+  }
+
+  void _updateApplicantsByStatus() {
+    _applicantsByStatus = {
+      'ALL': _allApplicants,
+      'PENDING': _allApplicants.where((a) => a.status == 'PENDING' || a.status == 'APPLIED').toList(),
+      'REVIEWING': _allApplicants.where((a) => a.status == 'REVIEWING').toList(),
+      'INTERVIEW': _allApplicants.where((a) => a.status == 'INTERVIEW').toList(),
+      'HIRED': _allApplicants.where((a) => a.status == 'HIRED' || a.status == 'APPROVED').toList(),
+      'REJECTED': _allApplicants.where((a) => a.status == 'REJECTED').toList(),
+    };
+  }
+
+  void _updateApplicantStatus(String applicantId, String newStatus) {
+    setState(() {
+      final applicantIndex = _allApplicants.indexWhere((a) => a.id == applicantId);
+      if (applicantIndex != -1) {
+        // copyWith 메소드 사용
+        _allApplicants[applicantIndex] = _allApplicants[applicantIndex].copyWith(status: newStatus);
+        _updateApplicantsByStatus();
+      }
+    });
   }
 
   void _showErrorMessage(String message) {
@@ -268,10 +290,8 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 상단 정보
             Row(
               children: [
-                // 프로필 아이콘
                 Container(
                   width: 48,
                   height: 48,
@@ -286,8 +306,6 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // 이름과 연락처
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,32 +329,27 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
                     ],
                   ),
                 ),
-
-                // 상태 배지
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: applicant.statusColor.withOpacity(0.1),
+                    color: _getStatusColor(applicant.status).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: applicant.statusColor.withOpacity(0.3)),
+                    border: Border.all(color: _getStatusColor(applicant.status).withOpacity(0.3)),
                   ),
                   child: Text(
-                    applicant.statusText,
+                    _getStatusText(applicant.status),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: applicant.statusColor,
+                      color: _getStatusColor(applicant.status),
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-
-            // 기후 점수와 지원 일자
             Row(
               children: [
-                // 기후 점수
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -364,8 +377,6 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
                   ),
                 ),
                 const Spacer(),
-
-                // 지원 일자
                 Text(
                   '${applicant.daysSinceApplied}일 전 지원',
                   style: TextStyle(
@@ -376,8 +387,6 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
               ],
             ),
             const SizedBox(height: 12),
-
-            // 액션 버튼들
             Row(
               children: [
                 Expanded(
@@ -396,23 +405,25 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
                   ),
                 ),
                 const SizedBox(width: 8),
-                if (applicant.status == 'PENDING' || applicant.status == 'REVIEWING') ...[
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _showStatusChangeDialog(applicant),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2D3748),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                      child: const Text(
-                        '상태변경',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _showStatusChangeDialog(applicant),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: applicant.status == 'HIRED' || applicant.status == 'REJECTED'
+                          ? Colors.orange
+                          : const Color(0xFF2D3748),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
                       ),
                     ),
+                    child: Text(
+                      applicant.status == 'HIRED' || applicant.status == 'REJECTED'
+                          ? '재검토'
+                          : '상태변경',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                   ),
-                ],
+                ),
               ],
             ),
           ],
@@ -455,6 +466,44 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
     );
   }
 
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'PENDING':
+      case 'APPLIED':
+        return '검토 대기';
+      case 'REVIEWING':
+        return '검토 중';
+      case 'INTERVIEW':
+        return '면접 요청';
+      case 'HIRED':
+      case 'APPROVED':
+        return '승인';
+      case 'REJECTED':
+        return '거절';
+      default:
+        return '알 수 없음';
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'PENDING':
+      case 'APPLIED':
+        return const Color(0xFFFF9800);
+      case 'REVIEWING':
+        return const Color(0xFF2196F3);
+      case 'INTERVIEW':
+        return const Color(0xFF9C27B0);
+      case 'HIRED':
+      case 'APPROVED':
+        return const Color(0xFF4CAF50);
+      case 'REJECTED':
+        return const Color(0xFFF44336);
+      default:
+        return Colors.grey;
+    }
+  }
+
   Color _getClimateScoreColor(int score) {
     if (score >= 80) return const Color(0xFF4CAF50);
     if (score >= 60) return const Color(0xFFFF9800);
@@ -469,7 +518,8 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
       builder: (context) => ApplicantDetailSheet(
         applicant: applicant,
         onStatusChanged: (String newStatus) {
-          _loadApplicants();
+          _updateApplicantStatus(applicant.id, newStatus);
+          _showSuccessMessage('${applicant.name}님의 상태가 변경되었습니다');
         },
       ),
     );
@@ -481,7 +531,7 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
       builder: (context) => StatusChangeDialog(
         applicant: applicant,
         onStatusChanged: (String newStatus) {
-          _loadApplicants();
+          _updateApplicantStatus(applicant.id, newStatus);
           _showSuccessMessage('${applicant.name}님의 상태가 변경되었습니다');
         },
       ),
@@ -563,7 +613,6 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
       ),
       child: Column(
         children: [
-          // 헤더
           Container(
             padding: const EdgeInsets.all(20),
             decoration: const BoxDecoration(
@@ -590,7 +639,7 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
                         ),
                       ),
                       Text(
-                        '${widget.applicant.statusText} • ${widget.applicant.daysSinceApplied}일 전 지원',
+                        '${_getStatusText(widget.applicant.status)} • ${widget.applicant.daysSinceApplied}일 전 지원',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.white.withOpacity(0.8),
@@ -606,8 +655,6 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
               ],
             ),
           ),
-
-          // 내용
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -632,7 +679,6 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 기본 정보
           _buildSection(
             '기본 정보',
             Icons.person_outline,
@@ -644,8 +690,6 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
             ],
           ),
           const SizedBox(height: 24),
-
-          // 기후 점수
           _buildSection(
             '기후 적응 점수',
             Icons.eco,
@@ -695,8 +739,6 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
             ],
           ),
           const SizedBox(height: 24),
-
-          // 경험 및 경력
           _buildSection(
             '경험 및 경력',
             Icons.work_outline,
@@ -722,9 +764,7 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
             ],
           ),
           const SizedBox(height: 24),
-
-          // 액션 버튼들
-          if (widget.applicant.status == 'PENDING' || widget.applicant.status == 'REVIEWING')
+          if (widget.applicant.status != 'HIRED' && widget.applicant.status != 'REJECTED')
             _buildActionButtons(),
         ],
       ),
@@ -825,7 +865,7 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () => _updateStatus('APPROVED'),
+                onPressed: () => _updateStatus('HIRED'),
                 icon: const Icon(Icons.check, size: 18),
                 label: const Text('승인'),
                 style: ElevatedButton.styleFrom(
@@ -875,6 +915,23 @@ class _ApplicantDetailSheetState extends State<ApplicantDetailSheet> {
         ],
       ),
     );
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'PENDING':
+        return '검토 대기';
+      case 'REVIEWING':
+        return '검토 중';
+      case 'INTERVIEW':
+        return '면접 요청';
+      case 'HIRED':
+        return '승인';
+      case 'REJECTED':
+        return '거절';
+      default:
+        return '알 수 없음';
+    }
   }
 
   Color _getClimateScoreColor(int score) {
@@ -942,7 +999,7 @@ class StatusChangeDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '현재 상태: ${applicant.statusText}',
+            '현재 상태: ${_getStatusText(applicant.status)}',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -978,7 +1035,7 @@ class StatusChangeDialog extends StatelessWidget {
           ),
         ),
         ElevatedButton(
-          onPressed: () => _updateStatus(context, 'APPROVED'),
+          onPressed: () => _updateStatus(context, 'HIRED'),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF4CAF50),
           ),
@@ -989,6 +1046,23 @@ class StatusChangeDialog extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'PENDING':
+        return '검토 대기';
+      case 'REVIEWING':
+        return '검토 중';
+      case 'INTERVIEW':
+        return '면접 요청';
+      case 'HIRED':
+        return '승인';
+      case 'REJECTED':
+        return '거절';
+      default:
+        return '알 수 없음';
+    }
   }
 
   Future<void> _updateStatus(BuildContext context, String newStatus) async {
@@ -1003,10 +1077,11 @@ class StatusChangeDialog extends StatelessWidget {
         Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['error']),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
+          SnackBar(
+            content: Text(result['error']),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } catch (e) {
