@@ -258,42 +258,6 @@ class _JobEditScreenState extends State<JobEditScreen> {
             return null;
           },
         ),
-        const SizedBox(height: 16),
-        _buildTextFormField(
-          controller: _companyController,
-          label: '회사명',
-          hint: '예: 제주 카페',
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return '회사명을 입력해주세요';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: JejuSelectBox(
-                label: '지역',
-                value: _selectedLocation,
-                icon: Icons.location_on,
-                color: const Color(0xFF2D3748),
-                onTap: () => _showLocationPicker(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: JejuSelectBox(
-                label: '업종',
-                value: _selectedCategory,
-                icon: Icons.category,
-                color: const Color(0xFF4A5568),
-                onTap: () => _showCategoryPicker(),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -301,42 +265,22 @@ class _JobEditScreenState extends State<JobEditScreen> {
   Widget _buildWorkConditionsSection() {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: JejuSelectBox(
-                label: '고용형태',
-                value: _selectedWorkType,
-                icon: Icons.work,
-                color: const Color(0xFF2D3748),
-                onTap: () => _showWorkTypePicker(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildTextFormField(
-                controller: _salaryController,
-                label: '급여',
-                hint: '예: 시급 12,000원',
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return '급여를 입력해주세요';
-                  }
-                  return null;
-                },
-              ),
-            ),
-          ],
+        _buildTextFormField(
+          controller: _salaryController,
+          label: '급여 (숫자만)',
+          hint: '예: 11000',
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return '급여를 입력해주세요';
+            }
+            if (int.tryParse(value.trim()) == null) {
+              return '숫자만 입력해주세요';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
         _buildDeadlinePicker(),
-        const SizedBox(height: 16),
-        _buildTextFormField(
-          controller: _experienceController,
-          label: '경력 요구사항',
-          hint: '예: 경력무관, 1년 이상',
-          maxLines: 2,
-        ),
       ],
     );
   }
@@ -641,21 +585,6 @@ class _JobEditScreenState extends State<JobEditScreen> {
       return;
     }
 
-    if (_selectedLocation.isEmpty) {
-      _showErrorMessage('지역을 선택해주세요');
-      return;
-    }
-
-    if (_selectedCategory.isEmpty) {
-      _showErrorMessage('업종을 선택해주세요');
-      return;
-    }
-
-    if (_selectedWorkType.isEmpty) {
-      _showErrorMessage('고용형태를 선택해주세요');
-      return;
-    }
-
     if (_selectedDeadline == null) {
       _showErrorMessage('마감일을 선택해주세요');
       return;
@@ -668,14 +597,9 @@ class _JobEditScreenState extends State<JobEditScreen> {
     try {
       final jobData = {
         'title': _titleController.text.trim(),
-        'company': _companyController.text.trim(),
-        'location': _selectedLocation,
-        'category': _selectedCategory,
-        'salary': _salaryController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'experience': _experienceController.text.trim(),
-        'workType': _selectedWorkType,
+        'salary': int.tryParse(_salaryController.text.trim()) ?? 0, // int로 변환
         'deadline': _selectedDeadline!.toIso8601String(),
+        'description': _descriptionController.text.trim(),
       };
 
       final result = await ApplicantManagementService.updateJobPosting(

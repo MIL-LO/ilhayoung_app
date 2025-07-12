@@ -1,17 +1,20 @@
-// lib/components/jobs/job_detail_sheet.dart - 채용공고 상세보기 컴포넌트
+// lib/components/jobs/job_detail_sheet.dart - 채용공고 상세보기 컴포넌트 (매니저 모드 지원)
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/job_posting_model.dart';
 import '../../services/job_api_service.dart';
 
 class JobDetailSheet extends StatefulWidget {
   final JobPosting job;
   final Function(String)? onApply;
+  final bool isEmployerMode; // 매니저 모드 여부
 
   const JobDetailSheet({
     Key? key,
     required this.job,
     this.onApply,
+    this.isEmployerMode = false, // 기본값 false (구직자 모드)
   }) : super(key: key);
 
   @override
@@ -82,13 +85,23 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 ? _buildErrorWidget()
                 : _buildContent(),
           ),
-          if (!_isLoading && _errorMessage == null) _buildApplyButton(),
+          // 매니저 모드에서는 지원하기 버튼 숨김
+          if (!_isLoading && _errorMessage == null && !widget.isEmployerMode)
+            _buildApplyButton(),
         ],
       ),
     );
   }
 
   Widget _buildHeader() {
+    // 모드에 따른 색상 설정
+    final primaryColor = widget.isEmployerMode
+        ? const Color(0xFF2D3748)
+        : const Color(0xFF00A3A3);
+    final secondaryColor = widget.isEmployerMode
+        ? const Color(0xFF4A5568)
+        : const Color(0xFF00D4AA);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       decoration: BoxDecoration(
@@ -122,13 +135,13 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF00A3A3), Color(0xFF00D4AA)],
+                  gradient: LinearGradient(
+                    colors: [primaryColor, secondaryColor],
                   ),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(
-                  Icons.work,
+                child: Icon(
+                  widget.isEmployerMode ? Icons.business : Icons.work,
                   color: Colors.white,
                   size: 28,
                 ),
@@ -211,18 +224,37 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   ),
                 ),
               ],
+              // 매니저 모드 표시 태그
+              if (widget.isEmployerMode) ...[
+                if (widget.job.isNew || widget.job.isUrgent) const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    '매니저 보기',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: widget.job.isExpired
                       ? Colors.red[50]
-                      : const Color(0xFF00A3A3).withOpacity(0.1),
+                      : primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: widget.job.isExpired
                         ? Colors.red[300]!
-                        : const Color(0xFF00A3A3),
+                        : primaryColor,
                   ),
                 ),
                 child: Text(
@@ -234,7 +266,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     fontWeight: FontWeight.bold,
                     color: widget.job.isExpired
                         ? Colors.red[600]
-                        : const Color(0xFF00A3A3),
+                        : primaryColor,
                   ),
                 ),
               ),
@@ -246,19 +278,21 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   Widget _buildLoadingWidget() {
-    return const Center(
+    final color = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00A3A3)),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             '상세 정보를 불러오는 중...',
             style: TextStyle(
               fontSize: 16,
-              color: Color(0xFF00A3A3),
+              color: color,
             ),
           ),
         ],
@@ -267,6 +301,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   Widget _buildErrorWidget() {
+    final color = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -291,7 +327,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             icon: const Icon(Icons.refresh),
             label: const Text('다시 시도'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00A3A3),
+              backgroundColor: color,
               foregroundColor: Colors.white,
             ),
           ),
@@ -301,6 +337,9 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   Widget _buildContent() {
+    final primaryColor = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+    final secondaryColor = widget.isEmployerMode ? const Color(0xFF4A5568) : const Color(0xFF00D4AA);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -311,17 +350,17 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF00A3A3), Color(0xFF00D4AA)],
+              gradient: LinearGradient(
+                colors: [primaryColor, secondaryColor],
               ),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '💰 급여 정보',
-                  style: TextStyle(
+                Text(
+                  widget.isEmployerMode ? '💼 급여 정보' : '💰 급여 정보',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -342,20 +381,26 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           const SizedBox(height: 20),
 
           // 근무 정보
-          _buildDetailSection('🏢 근무 정보', [
-            _buildDetailItem('근무지', _jobDetail?['workLocation'] ?? widget.job.workLocation),
-            _buildDetailItem('근무시간', _jobDetail?['workTime'] ?? widget.job.workScheduleText),
-            _buildDetailItem('근무요일', _jobDetail?['workDays'] ?? widget.job.workDaysText),
-            _buildDetailItem('근무기간', _jobDetail?['workPeriod'] ?? widget.job.workSchedule.workPeriodText),
-          ]),
+          _buildDetailSection(
+              widget.isEmployerMode ? '🏢 근무 조건' : '🏢 근무 정보',
+              [
+                _buildDetailItem('근무지', _jobDetail?['workLocation'] ?? widget.job.workLocation),
+                _buildDetailItem('근무시간', _jobDetail?['workTime'] ?? widget.job.workScheduleText),
+                _buildDetailItem('근무요일', _jobDetail?['workDays'] ?? widget.job.workDaysText),
+                _buildDetailItem('근무기간', _jobDetail?['workPeriod'] ?? widget.job.workSchedule.workPeriodText),
+              ]
+          ),
 
           // 채용 정보
-          _buildDetailSection('📋 채용 정보', [
-            _buildDetailItem('모집인원', _jobDetail?['recruitCount']?.toString() ?? '1명'),
-            _buildDetailItem('지원자 수', '${widget.job.applicationCount}명'),
-            _buildDetailItem('등록일', _formatDate(widget.job.createdAt)),
-            _buildDetailItem('마감일', _formatDate(widget.job.deadline)),
-          ]),
+          _buildDetailSection(
+              widget.isEmployerMode ? '📊 채용 현황' : '📋 채용 정보',
+              [
+                _buildDetailItem('모집인원', _jobDetail?['recruitCount']?.toString() ?? '1명'),
+                _buildDetailItem('지원자 수', '${widget.job.applicationCount}명'),
+                _buildDetailItem('등록일', _formatDate(widget.job.createdAt)),
+                _buildDetailItem('마감일', _formatDate(widget.job.deadline)),
+              ]
+          ),
 
           // 업무 내용 (API에서 받은 상세 정보)
           if (_jobDetail?['jobDescription'] != null) ...[
@@ -386,7 +431,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue[50],
+                  color: widget.isEmployerMode ? Colors.grey[50] : Colors.blue[50],
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -408,7 +453,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange[50],
+                  color: widget.isEmployerMode ? Colors.grey[50] : Colors.orange[50],
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -451,10 +496,10 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF2D3748),
+              color: widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF2D3748),
             ),
           ),
           const SizedBox(height: 12),
@@ -497,6 +542,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   Widget _buildApplyButton() {
+    final primaryColor = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -518,7 +565,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             style: ElevatedButton.styleFrom(
               backgroundColor: widget.job.isExpired
                   ? Colors.grey[400]
-                  : const Color(0xFF00A3A3),
+                  : primaryColor,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -566,6 +613,45 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // Helper 메서드들
+  String _getJobWorkType() {
+    try {
+      return (widget.job as dynamic).workType ?? '정규직';
+    } catch (e) {
+      return '정규직';
+    }
+  }
+
+  String _getJobDescription() {
+    try {
+      return (widget.job as dynamic).description ?? '상세 설명이 없습니다.';
+    } catch (e) {
+      return '상세 설명이 없습니다.';
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}년 ${date.month}월 ${date.day}일';
+  }
+
+  String _formatDeadline() {
+    final deadline = widget.job.deadline;
+    return '${deadline.year}.${deadline.month.toString().padLeft(2, '0')}.${deadline.day.toString().padLeft(2, '0')}';
+  }
+
+  void _shareJob() {
+    HapticFeedback.lightImpact();
+    final color = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('공유 기능 준비 중입니다'),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -664,9 +750,5 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         });
       }
     }
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.year}년 ${date.month}월 ${date.day}일';
   }
 }

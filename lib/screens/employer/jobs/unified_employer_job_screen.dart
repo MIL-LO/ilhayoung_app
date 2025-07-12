@@ -43,9 +43,8 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     '농업', '유통/판매', '서비스업'
   ];
 
-  // 공통 리스트 컴포넌트 참조
-  final GlobalKey<CommonJobListState> _allJobsKey = GlobalKey<CommonJobListState>();
-  final GlobalKey<CommonJobListState> _myJobsKey = GlobalKey<CommonJobListState>();
+  // 새로고침을 위한 상태 변수
+  int _refreshCounter = 0;
 
   @override
   void initState() {
@@ -276,21 +275,22 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
 
   Widget _buildAllJobsTab() {
     return CommonJobList(
-      key: _allJobsKey,
+      key: ValueKey('all_jobs_$_refreshCounter'),
       showMyJobsOnly: false,
       onJobAction: _handleJobAction,
       searchQuery: _searchQuery,
       selectedLocation: _selectedLocation != '제주 전체' ? _selectedLocation : null,
       selectedCategory: _selectedCategory != '전체' ? _selectedCategory : null,
+      isEmployerMode: true, // 매니저 모드 활성화
     );
   }
 
   Widget _buildMyJobsTab() {
-    // CommonJobList를 그대로 사용하되, 기본 제공 빌더 사용
     return CommonJobList(
-      key: _myJobsKey,
+      key: ValueKey('my_jobs_$_refreshCounter'),
       showMyJobsOnly: true,
       onJobAction: _handleJobAction,
+      isEmployerMode: true, // 매니저 모드 활성화
     );
   }
 
@@ -535,8 +535,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     ).then((result) {
       // 수정이나 삭제가 완료되면 새로고침
       if (result == true || result == 'deleted') {
-        _myJobsKey.currentState?.refresh();
-        _allJobsKey.currentState?.refresh();
+        _refreshJobLists();
       }
     });
   }
@@ -559,8 +558,14 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
         builder: (context) => const JobManagementScreen(),
       ),
     ).then((_) {
-      _myJobsKey.currentState?.refresh();
-      _allJobsKey.currentState?.refresh();
+      _refreshJobLists();
+    });
+  }
+
+  // 새로고침 메서드 - ValueKey 방식
+  void _refreshJobLists() {
+    setState(() {
+      _refreshCounter++;
     });
   }
 }

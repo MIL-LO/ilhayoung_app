@@ -12,6 +12,7 @@ class CommonJobList extends StatefulWidget {
   final String? searchQuery;
   final String? selectedLocation;
   final String? selectedCategory;
+  final bool isEmployerMode; // 사업자 모드인지 여부
 
   const CommonJobList({
     Key? key,
@@ -20,6 +21,7 @@ class CommonJobList extends StatefulWidget {
     this.searchQuery,
     this.selectedLocation,
     this.selectedCategory,
+    this.isEmployerMode = false, // 기본값 false (구직자 모드)
   }) : super(key: key);
 
   @override
@@ -156,10 +158,14 @@ class CommonJobListState extends State<CommonJobList> {
 
   void _showSuccessMessage(String message) {
     if (mounted) {
+      final backgroundColor = widget.isEmployerMode
+          ? const Color(0xFF2D3748)
+          : const Color(0xFF00A3A3);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: const Color(0xFF00A3A3),
+          backgroundColor: backgroundColor,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -173,7 +179,7 @@ class CommonJobListState extends State<CommonJobList> {
     }
 
     return RefreshIndicator(
-      color: const Color(0xFF00A3A3),
+      color: widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3),
       onRefresh: () => _loadJobPostings(isRefresh: true),
       child: CustomScrollView(
         controller: _scrollController,
@@ -199,20 +205,22 @@ class CommonJobListState extends State<CommonJobList> {
   }
 
   Widget _buildInitialLoadingWidget() {
-    return const Center(
+    final color = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00A3A3)),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
             strokeWidth: 3,
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             '채용공고를 불러오는 중... 🌊',
             style: TextStyle(
               fontSize: 16,
-              color: Color(0xFF00A3A3),
+              color: color,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -223,9 +231,8 @@ class CommonJobListState extends State<CommonJobList> {
 
   Widget _buildBanner() {
     // 사업자용과 구직자용 색상 구분
-    final isEmployer = widget.showMyJobsOnly || widget.onJobAction != null;
-    final primaryColor = isEmployer ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
-    final secondaryColor = isEmployer ? const Color(0xFF4A5568) : const Color(0xFF00D4AA);
+    final primaryColor = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+    final secondaryColor = widget.isEmployerMode ? const Color(0xFF4A5568) : const Color(0xFF00D4AA);
 
     return SliverToBoxAdapter(
       child: Container(
@@ -266,10 +273,20 @@ class CommonJobListState extends State<CommonJobList> {
                       ),
                     ),
                     // 사업자용에서는 추가 메시지 제거, 구직자용에서만 표시
-                    if (!isEmployer) ...[
+                    if (!widget.isEmployerMode) ...[
                       const SizedBox(height: 2),
                       const Text(
                         '바다처럼 넓은 기회를 찾아보세요!',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 2),
+                      const Text(
+                        '시장 동향을 파악하고 경쟁력을 높이세요!',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -289,7 +306,7 @@ class CommonJobListState extends State<CommonJobList> {
                 ),
                 child: Center(
                   child: Text(
-                    isEmployer ? '🏢' : '🌊',
+                    widget.isEmployerMode ? '📊' : '🌊',
                     style: const TextStyle(fontSize: 16),
                   ),
                 ),
@@ -411,6 +428,8 @@ class CommonJobListState extends State<CommonJobList> {
   }
 
   Widget _buildJobCard(JobPosting job) {
+    final cardColor = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -418,7 +437,7 @@ class CommonJobListState extends State<CommonJobList> {
         borderRadius: BorderRadius.circular(12),
         border: widget.showMyJobsOnly
             ? Border.all(
-          color: const Color(0xFF2D3748).withOpacity(0.3),
+          color: cardColor.withOpacity(0.3),
         )
             : null,
         boxShadow: [
@@ -507,7 +526,7 @@ class CommonJobListState extends State<CommonJobList> {
                         margin: const EdgeInsets.only(top: 4),
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2D3748),
+                          color: cardColor,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -529,15 +548,15 @@ class CommonJobListState extends State<CommonJobList> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF00A3A3).withOpacity(0.1),
+                color: cardColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 job.formattedSalary,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF00A3A3),
+                  color: cardColor,
                 ),
               ),
             ),
@@ -636,14 +655,14 @@ class CommonJobListState extends State<CommonJobList> {
                     child: OutlinedButton(
                       onPressed: () => _editJob(job),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF2D3748)),
+                        side: BorderSide(color: cardColor),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         '수정',
-                        style: TextStyle(color: Color(0xFF2D3748), fontSize: 12),
+                        style: TextStyle(color: cardColor, fontSize: 12),
                       ),
                     ),
                   ),
@@ -652,7 +671,7 @@ class CommonJobListState extends State<CommonJobList> {
                     child: ElevatedButton(
                       onPressed: () => _viewApplicants(job),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2D3748),
+                        backgroundColor: cardColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
                         ),
@@ -673,20 +692,22 @@ class CommonJobListState extends State<CommonJobList> {
   }
 
   Widget _buildLoadingIndicator() {
-    return const SliverToBoxAdapter(
+    final color = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
+
+    return SliverToBoxAdapter(
       child: Padding(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         child: Center(
           child: Column(
             children: [
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00A3A3)),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
                 strokeWidth: 3,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               Text(
                 '더 많은 공고를 불러오는 중... 🌊',
-                style: TextStyle(fontSize: 14, color: Color(0xFF00A3A3)),
+                style: TextStyle(fontSize: 14, color: color),
               ),
             ],
           ),
@@ -703,8 +724,9 @@ class CommonJobListState extends State<CommonJobList> {
       isScrollControlled: true,
       builder: (context) => JobDetailSheet(
         job: job,
-        onApply: widget.showMyJobsOnly
-            ? null // 내 공고에서는 지원 불가
+        isEmployerMode: widget.isEmployerMode, // 매니저 모드 전달
+        onApply: widget.showMyJobsOnly || widget.isEmployerMode
+            ? null // 내 공고이거나 매니저 모드에서는 지원 불가
             : (message) {
           _showSuccessMessage(message);
           _loadJobPostings(isRefresh: true);
