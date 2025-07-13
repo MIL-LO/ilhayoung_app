@@ -78,8 +78,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       // 사용자 정보 로드
       await _loadUserInfo();
 
-      // 근무 스케줄 로드
-      await _loadWorkSchedules();
+      // 근무 스케줄 로드 (새로운 API 호출)
+      await _loadWorkSchedulesFromAPI();
 
       setState(() {
         _isLoading = false;
@@ -109,24 +109,35 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     }
   }
 
-  Future<void> _loadWorkSchedules() async {
+  // 🎯 새로운 API 연동 메서드
+  Future<void> _loadWorkSchedulesFromAPI() async {
     try {
-      print('=== 근무 스케줄 로드 시작 ===');
+      print('=== 📅 /api/schedules API 호출 시작 ===');
+      print('조회 월: ${_currentMonth.year}년 ${_currentMonth.month}월');
 
-      // 월별 스케줄 API 호출
-      final result = await WorkScheduleService.getMonthlySchedules(
+      // /api/schedules API 호출
+      final result = await WorkScheduleService.getSchedulesByMonth(
         year: _currentMonth.year,
         month: _currentMonth.month,
       );
 
       if (result['success']) {
+        final List<dynamic> scheduleData = result['data'] ?? [];
+
+        // API 응답을 WorkSchedule 모델로 변환
         setState(() {
-          _allSchedules = result['data'] as List<WorkSchedule>;
+          _allSchedules = scheduleData.map((item) => _convertApiToWorkSchedule(item)).toList();
           _updateFilteredSchedules();
         });
-        print('✅ 근무 스케줄 로드 완료 (${_allSchedules.length}개)');
+
+        print('✅ 스케줄 로드 완료: ${_allSchedules.length}개');
+        print('📋 스케줄 상세:');
+        for (var schedule in _allSchedules) {
+          print('  - ${schedule.company}: ${schedule.date} ${schedule.startTime}-${schedule.endTime} (${schedule.statusText})');
+        }
+
       } else {
-        print('❌ 근무 스케줄 로드 실패: ${result['error']}');
+        print('❌ 스케줄 로드 실패: ${result['error']}');
         setState(() {
           _allSchedules = [];
           _updateFilteredSchedules();
@@ -136,7 +147,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['error']),
+              content: Text(result['error'] ?? '스케줄을 불러오는데 실패했습니다'),
               backgroundColor: Colors.red,
               behavior: SnackBarBehavior.floating,
             ),
@@ -144,11 +155,151 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         }
       }
     } catch (e) {
-      print('❌ 근무 스케줄 로드 실패: $e');
+      print('❌ 스케줄 API 호출 실패: $e');
       setState(() {
         _allSchedules = [];
         _updateFilteredSchedules();
       });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('네트워크 오류: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // 🎯 API 응답을 WorkSchedule 모델로 변환 (수정된 버전)
+  WorkSchedule _convertApiToWorkSchedule(Map<String, dynamic> apiData) {
+    try {
+      print('변환할 데이터: $apiData');
+
+      // API 응답 필드를 안전하게 추출
+      final id = apiData['id']?.toString() ?? '0';
+      final company = apiData['companyName']?.toString() ?? '회사명 없음';
+      final position = apiData['position']?.toString() ?? '직무 없음';
+
+      // workDate를 date로 변환 (API에서는 workDate로 오지만 모델에서는 date 필요)
+      DateTime date;
+      final workDateRaw = apiData['workDate'];
+      if (workDateRaw is String) {
+        date = DateTime.parse(workDateRaw);
+      } else {
+        date = DateTime.now();
+        print('⚠️ workDate가 문자열이 아님: $workDateRaw (${workDateRaw.runtimeType})');
+      }
+
+      // 시간 데이터 안전 변환
+      final startTime = apiData['startTime']?.toString() ?? '09:00';
+      final endTime = apiData['endTime']?.toString() ?? '18:00';
+
+      // status 변환
+      final status = _parseWorkStatus(apiData['status']?.toString() ?? 'SCHEDULED');
+
+      // 선택적 필드들 안전 변환
+      final location = apiData['location']?.toString();
+      final hourlyRate = _parseHourlyRate(apiData);
+      final notes = apiData['notes']?.toString();
+
+      // 체크인/아웃 시간 안전 변환
+      DateTime? checkInTime;
+      DateTime? checkOutTime;
+
+      if (apiData['checkInTime'] != null) {
+        try {
+          checkInTime = DateTime.parse(apiData['checkInTime'].toString());
+        } catch (e) {
+          print('checkInTime 파싱 오류: $e');
+        }
+      }
+
+      if (apiData['checkOutTime'] != null) {
+        try {
+          checkOutTime = DateTime.parse(apiData['checkOutTime'].toString());
+        } catch (e) {
+          print('checkOutTime 파싱 오류: $e');
+        }
+      }
+
+      print('변환 완료 - id: $id, company: $company, date: $date, status: $status');
+
+      return WorkSchedule(
+        id: '0', // String을 int로 안전하게 변환
+        company: company,
+        position: position,
+        date: date,
+        startTime: startTime,
+        endTime: endTime,
+        status: status,
+        location: location,
+        hourlyRate: hourlyRate,
+        notes: notes,
+        checkInTime: checkInTime,
+        checkOutTime: checkOutTime,
+      );
+    } catch (e) {
+      print('❌ API 데이터 변환 오류: $e');
+      print('문제된 데이터: $apiData');
+
+      // 기본값으로 안전하게 생성
+      return WorkSchedule(
+        id: '0',
+        company: '데이터 오류',
+        position: '직무 미상',
+        date: DateTime.now(),
+        startTime: '09:00',
+        endTime: '18:00',
+        status: WorkStatus.scheduled,
+      );
+    }
+  }
+
+  // 🎯 시급 데이터 안전 파싱
+  double? _parseHourlyRate(Map<String, dynamic> apiData) {
+    // 여러 필드에서 시급 정보를 찾아서 변환
+    final candidates = [
+      apiData['hourlyRate'],
+      apiData['hourlyWage'],
+      apiData['wage'],
+      apiData['rate'],
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate != null) {
+        try {
+          if (candidate is num) {
+            return candidate.toDouble();
+          } else if (candidate is String) {
+            return double.tryParse(candidate);
+          }
+        } catch (e) {
+          print('시급 파싱 오류: $candidate -> $e');
+        }
+      }
+    }
+
+    return null; // 시급 정보를 찾을 수 없음
+  }
+
+  // 🎯 API status 문자열을 WorkStatus enum으로 변환
+  WorkStatus _parseWorkStatus(String? status) {
+    switch (status?.toUpperCase()) {
+      case 'SCHEDULED':
+        return WorkStatus.scheduled;
+      case 'PRESENT':
+        return WorkStatus.present;
+      case 'ABSENT':
+        return WorkStatus.absent;
+      case 'LATE':
+        return WorkStatus.late;
+      case 'COMPLETED':
+        return WorkStatus.completed;
+      default:
+        return WorkStatus.scheduled;
     }
   }
 
@@ -163,6 +314,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     _selectedDateSchedules = _filteredSchedules.where((schedule) {
       return _isSameDay(schedule.date, _selectedDate);
     }).toList();
+
+    print('🔍 필터링 결과: 월별 ${_filteredSchedules.length}개, 선택일 ${_selectedDateSchedules.length}개');
   }
 
   @override
@@ -192,7 +345,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
           ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Color(0xFF00A3A3), size: 20),
-            onPressed: _loadWorkSchedules,
+            onPressed: _loadWorkSchedulesFromAPI, // 🎯 새로운 API 메서드 호출
             tooltip: '새로고침',
           ),
         ],
@@ -212,7 +365,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             ),
             SizedBox(height: 16),
             Text(
-              '근무 정보를 불러오는 중...',
+              '📅 스케줄을 불러오는 중...',
               style: TextStyle(
                 fontSize: 16,
                 color: Color(0xFF00A3A3),
@@ -659,8 +812,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       );
     });
 
-    // 새로운 월의 데이터 로드
-    _loadWorkSchedules();
+    // 🎯 새로운 월의 데이터를 API에서 로드
+    _loadWorkSchedulesFromAPI();
   }
 
   void _goToToday() {
@@ -673,7 +826,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     });
 
     if (needsReload) {
-      _loadWorkSchedules();
+      _loadWorkSchedulesFromAPI(); // 🎯 새로운 API 메서드 호출
     } else {
       _updateFilteredSchedules();
     }
@@ -703,7 +856,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
     if (result != null) {
       // 평가 완료 후 스케줄 새로고침
-      _loadWorkSchedules();
+      _loadWorkSchedulesFromAPI(); // 🎯 새로운 API 메서드 호출
     }
   }
 
@@ -720,7 +873,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         ),
       );
 
-      final result = await WorkScheduleService.checkIn(schedule.id);
+      final result = await WorkScheduleService.checkIn(schedule.id as int);
 
       // 로딩 다이얼로그 닫기
       Navigator.pop(context);
@@ -742,7 +895,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         );
 
         // 스케줄 새로고침
-        _loadWorkSchedules();
+        _loadWorkSchedulesFromAPI(); // 🎯 새로운 API 메서드 호출
       } else {
         // 에러 메시지
         ScaffoldMessenger.of(context).showSnackBar(
@@ -786,7 +939,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         ),
       );
 
-      final result = await WorkScheduleService.checkOut(schedule.id);
+      final result = await WorkScheduleService.checkOut(schedule.id as int);
 
       // 로딩 다이얼로그 닫기
       Navigator.pop(context);
@@ -808,7 +961,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         );
 
         // 스케줄 새로고침
-        _loadWorkSchedules();
+        _loadWorkSchedulesFromAPI(); // 🎯 새로운 API 메서드 호출
       } else {
         // 에러 메시지
         ScaffoldMessenger.of(context).showSnackBar(

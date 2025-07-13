@@ -1,412 +1,286 @@
-// lib/services/work_schedule_service.dart - 수정된 버전
+// lib/services/work_schedule_service.dart - API 연동 버전
 
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../models/work_schedule.dart';
-import 'auth_service.dart';
+import 'package:http/http.dart' as http;
+import '../config/app_config.dart';
+import '../services/auth_service.dart';
 
 class WorkScheduleService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
 
-  // 🔧 추가: v1 없는 베이스 URL도 시도
-  static const String baseUrlWithoutV1 = 'https://api.ilhayoung.com/api';
+  /// 🎯 API: 월별 스케줄 조회 (/schedules - v1 제거)
+  static Future<Map<String, dynamic>> getSchedulesByMonth({
+    required int year,
+    required int month,
+  }) async {
+    try {
+      print('=== 📅 /schedules API 호출 (v1 제거) ===');
+      print('요청 파라미터: year=$year, month=$month');
 
-  // 월별 근무 스케줄 조회 - 다양한 방식 시도
+      // 인증 토큰 가져오기
+      final token = await AuthService.getAccessToken();
+      if (token == null) {
+        return {
+          'success': false,
+          'error': '인증 토큰이 없습니다. 다시 로그인해주세요.',
+        };
+      }
+
+      // API 호출 (/api/schedules - v1만 제거)
+      final url = Uri.parse('https://api.ilhayoung.com/api/schedules').replace(
+        queryParameters: {
+          'year': year.toString(),
+          'month': month.toString(),
+        },
+      );
+
+      print('API URL: $url');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('응답 상태: ${response.statusCode}');
+      print('응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+
+        return {
+          'success': true,
+          'data': data['data'] ?? [], // 스케줄 배열
+          'message': data['message'] ?? '스케줄 조회 성공',
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': '인증이 만료되었습니다. 다시 로그인해주세요.',
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': true,
+          'data': [], // 스케줄이 없는 경우 빈 배열 반환
+          'message': '해당 월에 스케줄이 없습니다.',
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['message'] ?? '스케줄 조회에 실패했습니다.',
+        };
+      }
+    } catch (e) {
+      print('❌ /schedules API 호출 오류: $e');
+      return {
+        'success': false,
+        'error': '네트워크 오류가 발생했습니다: $e',
+      };
+    }
+  }
+
+  /// 기존 메서드: 월별 스케줄 조회 (호환성 유지)
   static Future<Map<String, dynamic>> getMonthlySchedules({
     required int year,
     required int month,
   }) async {
-    print('=== 월별 근무 스케줄 API 호출 (개선된 버전) ===');
-    print('년도: $year, 월: $month');
-
-    // 1. 로그인 상태 먼저 확인
-    final isLoggedIn = await AuthService.isLoggedIn();
-    if (!isLoggedIn) {
-      print('❌ 로그인 상태가 아님');
-      return {'success': false, 'error': '로그인이 필요합니다', 'errorType': 'AUTH'};
-    }
-
-    // 2. 액세스 토큰 가져오기
-    final token = await AuthService.getAccessToken();
-    if (token == null) {
-      print('❌ 액세스 토큰 없음');
-      return {'success': false, 'error': '인증 토큰이 없습니다', 'errorType': 'AUTH'};
-    }
-
-    print('✅ 인증 확인 완료');
-
-    // 🔧 방법 1: 파라미터 없이 모든 스케줄 조회 후 클라이언트에서 필터링
-    try {
-      print('🔄 방법 1: 파라미터 없이 전체 스케줄 조회 시도');
-
-      final response1 = await http.get(
-        Uri.parse('$baseUrl/schedules'),  // 파라미터 없이
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print('방법 1 응답 상태: ${response1.statusCode}');
-      print('방법 1 응답 본문: ${response1.body}');
-
-      if (response1.statusCode == 200) {
-        final responseData = json.decode(response1.body);
-
-        if (responseData['code'] == 'SUCCESS' && responseData['data'] != null) {
-          final allSchedules = (responseData['data'] as List? ?? [])
-              .map((item) => WorkSchedule.fromJson(item))
-              .toList();
-
-          // 클라이언트에서 월별 필터링
-          final filteredSchedules = allSchedules.where((schedule) {
-            return schedule.date.year == year && schedule.date.month == month;
-          }).toList();
-
-          print('✅ 방법 1 성공: 전체 ${allSchedules.length}개, 필터링 후 ${filteredSchedules.length}개');
-          return {'success': true, 'data': filteredSchedules};
-        }
-      }
-    } catch (e) {
-      print('❌ 방법 1 실패: $e');
-    }
-
-    // 🔧 방법 2: YYYY-MM 형식으로 month 파라미터 전송
-    try {
-      print('🔄 방법 2: YYYY-MM 형식 파라미터 시도');
-
-      final monthParam = '$year-${month.toString().padLeft(2, '0')}';
-      final response2 = await http.get(
-        Uri.parse('$baseUrl/schedules?month=$monthParam'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print('방법 2 URL: $baseUrl/schedules?month=$monthParam');
-      print('방법 2 응답 상태: ${response2.statusCode}');
-      print('방법 2 응답 본문: ${response2.body}');
-
-      if (response2.statusCode == 200) {
-        final responseData = json.decode(response2.body);
-
-        if (responseData['code'] == 'SUCCESS' && responseData['data'] != null) {
-          final schedules = (responseData['data'] as List? ?? [])
-              .map((item) => WorkSchedule.fromJson(item))
-              .toList();
-
-          print('✅ 방법 2 성공: ${schedules.length}개 스케줄');
-          return {'success': true, 'data': schedules};
-        }
-      }
-    } catch (e) {
-      print('❌ 방법 2 실패: $e');
-    }
-
-    // 🔧 방법 3: 기존 방식 (year, month 개별 파라미터)
-    try {
-      print('🔄 방법 3: 기존 year, month 파라미터 시도');
-
-      final response3 = await http.get(
-        Uri.parse('$baseUrl/schedules?year=$year&month=$month'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print('방법 3 응답 상태: ${response3.statusCode}');
-      print('방법 3 응답 본문: ${response3.body}');
-
-      if (response3.statusCode == 200) {
-        final responseData = json.decode(response3.body);
-
-        if (responseData['code'] == 'SUCCESS' && responseData['data'] != null) {
-          final schedules = (responseData['data'] as List? ?? [])
-              .map((item) => WorkSchedule.fromJson(item))
-              .toList();
-
-          print('✅ 방법 3 성공: ${schedules.length}개 스케줄');
-          return {'success': true, 'data': schedules};
-        }
-      } else if (response3.statusCode == 500) {
-        // 500 에러 상세 분석
-        try {
-          final errorData = json.decode(response3.body);
-          print('❌ 방법 3 서버 에러 상세: ${errorData['message']}');
-        } catch (e) {
-          print('❌ 방법 3 에러 파싱 실패: $e');
-        }
-      }
-    } catch (e) {
-      print('❌ 방법 3 실패: $e');
-    }
-
-    // 🔧 방법 4: 날짜 범위로 조회
-    try {
-      print('🔄 방법 4: 날짜 범위 파라미터 시도');
-
-      final startDate = '$year-${month.toString().padLeft(2, '0')}-01';
-      final lastDay = DateTime(year, month + 1, 0).day;
-      final endDate = '$year-${month.toString().padLeft(2, '0')}-${lastDay.toString().padLeft(2, '0')}';
-
-      final response4 = await http.get(
-        Uri.parse('$baseUrl/schedules?startDate=$startDate&endDate=$endDate'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print('방법 4 URL: $baseUrl/schedules?startDate=$startDate&endDate=$endDate');
-      print('방법 4 응답 상태: ${response4.statusCode}');
-      print('방법 4 응답 본문: ${response4.body}');
-
-      if (response4.statusCode == 200) {
-        final responseData = json.decode(response4.body);
-
-        if (responseData['code'] == 'SUCCESS' && responseData['data'] != null) {
-          final schedules = (responseData['data'] as List? ?? [])
-              .map((item) => WorkSchedule.fromJson(item))
-              .toList();
-
-          print('✅ 방법 4 성공: ${schedules.length}개 스케줄');
-          return {'success': true, 'data': schedules};
-        }
-      }
-    } catch (e) {
-      print('❌ 방법 4 실패: $e');
-    }
-
-    // 🔧 방법 5: v1 없는 URL로 시도 (API 명세서와 동일)
-    try {
-      print('🔄 방법 5: v1 없는 URL로 시도');
-
-      final response5 = await http.get(
-        Uri.parse('$baseUrlWithoutV1/schedules'),  // v1 제거
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print('방법 5 URL: $baseUrlWithoutV1/schedules');
-      print('방법 5 응답 상태: ${response5.statusCode}');
-      print('방법 5 응답 본문: ${response5.body}');
-
-      if (response5.statusCode == 200) {
-        final responseData = json.decode(response5.body);
-
-        if (responseData['code'] == 'SUCCESS' && responseData['data'] != null) {
-          final allSchedules = (responseData['data'] as List? ?? [])
-              .map((item) => WorkSchedule.fromJson(item))
-              .toList();
-
-          // 클라이언트에서 월별 필터링
-          final filteredSchedules = allSchedules.where((schedule) {
-            return schedule.date.year == year && schedule.date.month == month;
-          }).toList();
-
-          print('✅ 방법 5 성공: 전체 ${allSchedules.length}개, 필터링 후 ${filteredSchedules.length}개');
-          return {'success': true, 'data': filteredSchedules};
-        }
-      }
-    } catch (e) {
-      print('❌ 방법 5 실패: $e');
-    }
-    print('❌ 모든 방법 실패 - 빈 배열 반환');
-    return {
-      'success': true,
-      'data': <WorkSchedule>[],
-      'message': '스케줄 데이터를 불러올 수 없습니다. 서버 문제일 수 있습니다.'
-    };
+    // 새로운 API로 리다이렉트
+    return await getSchedulesByMonth(year: year, month: month);
   }
 
-  // 오늘의 근무 스케줄 조회 - 개선된 버전
-  static Future<Map<String, dynamic>> getTodaySchedules() async {
+  /// 체크인 API
+  static Future<Map<String, dynamic>> checkIn(int scheduleId) async {
     try {
-      print('=== 오늘 근무 스케줄 API 호출 (개선된 버전) ===');
-
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        return {'success': false, 'error': '로그인이 필요합니다', 'errorType': 'AUTH'};
-      }
-
-      final token = await AuthService.getAccessToken();
-      if (token == null) {
-        return {'success': false, 'error': '인증 토큰이 없습니다', 'errorType': 'AUTH'};
-      }
-
-      // 방법 1: /schedules/today 엔드포인트
-      try {
-        print('🔄 오늘 스케줄 방법 1: /schedules/today');
-
-        final response = await http.get(
-          Uri.parse('$baseUrl/schedules/today'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-        );
-
-        print('오늘 스케줄 응답 상태: ${response.statusCode}');
-        print('오늘 스케줄 응답 본문: ${response.body}');
-
-        if (response.statusCode == 200) {
-          final responseData = json.decode(response.body);
-
-          if (responseData['code'] == 'SUCCESS' && responseData['data'] != null) {
-            final schedules = (responseData['data'] as List? ?? [])
-                .map((item) => WorkSchedule.fromJson(item))
-                .toList();
-
-            print('✅ 오늘 스케줄 방법 1 성공: ${schedules.length}개');
-            return {'success': true, 'data': schedules};
-          }
-        } else if (response.statusCode == 500) {
-          print('❌ 오늘 스케줄 500 에러 - 방법 2 시도');
-        }
-      } catch (e) {
-        print('❌ 오늘 스케줄 방법 1 실패: $e');
-      }
-
-      // 방법 2: 전체 스케줄에서 오늘 날짜 필터링
-      print('🔄 오늘 스케줄 방법 2: 전체 스케줄에서 필터링');
-
-      final now = DateTime.now();
-      final monthlyResult = await getMonthlySchedules(year: now.year, month: now.month);
-
-      if (monthlyResult['success']) {
-        final allSchedules = monthlyResult['data'] as List<WorkSchedule>;
-        final todaySchedules = allSchedules.where((schedule) {
-          return schedule.date.year == now.year &&
-              schedule.date.month == now.month &&
-              schedule.date.day == now.day;
-        }).toList();
-
-        print('✅ 오늘 스케줄 방법 2 성공: ${todaySchedules.length}개');
-        return {'success': true, 'data': todaySchedules};
-      }
-
-      return {'success': true, 'data': <WorkSchedule>[]};
-    } catch (e) {
-      print('❌ 오늘 스케줄 조회 오류: $e');
-      return {'success': false, 'error': '네트워크 오류: $e'};
-    }
-  }
-
-  // 기존 메서드들은 그대로 유지...
-  static Future<Map<String, dynamic>> getScheduleDetail(String scheduleId) async {
-    // 기존 코드 유지
-    try {
-      print('=== 스케줄 상세 정보 API 호출 ===');
+      print('=== 📍 체크인 API 호출 ===');
       print('스케줄 ID: $scheduleId');
 
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        return {'success': false, 'error': '로그인이 필요합니다', 'errorType': 'AUTH'};
+      final token = await AuthService.getAccessToken();
+      if (token == null) {
+        return {
+          'success': false,
+          'error': '인증 토큰이 없습니다.',
+        };
       }
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/schedules/$scheduleId/checkin'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('체크인 응답: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? '체크인이 완료되었습니다.',
+          'data': data['data'],
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['message'] ?? '체크인에 실패했습니다.',
+        };
+      }
+    } catch (e) {
+      print('❌ 체크인 API 오류: $e');
+      return {
+        'success': false,
+        'error': '체크인 중 오류가 발생했습니다: $e',
+      };
+    }
+  }
+
+  /// 체크아웃 API
+  static Future<Map<String, dynamic>> checkOut(int scheduleId) async {
+    try {
+      print('=== 📍 체크아웃 API 호출 ===');
+      print('스케줄 ID: $scheduleId');
 
       final token = await AuthService.getAccessToken();
       if (token == null) {
-        return {'success': false, 'error': '인증 토큰이 없습니다', 'errorType': 'AUTH'};
+        return {
+          'success': false,
+          'error': '인증 토큰이 없습니다.',
+        };
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/schedules/$scheduleId/checkout'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('체크아웃 응답: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? '체크아웃이 완료되었습니다.',
+          'data': data['data'],
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['message'] ?? '체크아웃에 실패했습니다.',
+        };
+      }
+    } catch (e) {
+      print('❌ 체크아웃 API 오류: $e');
+      return {
+        'success': false,
+        'error': '체크아웃 중 오류가 발생했습니다: $e',
+      };
+    }
+  }
+
+  /// 스케줄 상세 조회 API
+  static Future<Map<String, dynamic>> getScheduleDetail(int scheduleId) async {
+    try {
+      print('=== 📋 스케줄 상세 조회 API 호출 ===');
+      print('스케줄 ID: $scheduleId');
+
+      final token = await AuthService.getAccessToken();
+      if (token == null) {
+        return {
+          'success': false,
+          'error': '인증 토큰이 없습니다.',
+        };
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/schedules/$scheduleId'),
+        Uri.parse('${AppConfig.apiBaseUrl}/schedules/$scheduleId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
       );
 
+      print('스케줄 상세 응답: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final schedule = WorkSchedule.fromJson(responseData['data']);
-        return {'success': true, 'data': schedule};
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'data': data['data'],
+          'message': '스케줄 상세 조회 성공',
+        };
       } else {
-        final error = json.decode(response.body);
-        return {'success': false, 'error': error['message'] ?? '스케줄 조회 실패'};
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['message'] ?? '스케줄 상세 조회에 실패했습니다.',
+        };
       }
     } catch (e) {
-      return {'success': false, 'error': '네트워크 오류: $e'};
+      print('❌ 스케줄 상세 조회 오류: $e');
+      return {
+        'success': false,
+        'error': '스케줄 상세 조회 중 오류가 발생했습니다: $e',
+      };
     }
   }
 
-  static Future<Map<String, dynamic>> checkIn(String scheduleId) async {
-    // 기존 체크인 코드 유지
-    try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        return {'success': false, 'error': '로그인이 필요합니다'};
-      }
-
-      final token = await AuthService.getAccessToken();
-      if (token == null) {
-        return {'success': false, 'error': '인증 토큰이 없습니다'};
-      }
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/schedules/$scheduleId/checkin'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({'checkInTime': DateTime.now().toIso8601String()}),
-      );
-
-      if (response.statusCode == 200) {
-        final now = DateTime.now();
-        final timeString = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-        return {
-          'success': true,
-          'message': '🌊 $timeString 출근 체크인 완료!',
-        };
-      } else {
-        final error = json.decode(response.body);
-        return {'success': false, 'error': error['message'] ?? '체크인 실패'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': '네트워크 오류: $e'};
-    }
+  /// 오늘의 스케줄 조회 API
+  static Future<Map<String, dynamic>> getTodaySchedules() async {
+    final now = DateTime.now();
+    return await getSchedulesByMonth(
+      year: now.year,
+      month: now.month,
+    );
   }
 
-  static Future<Map<String, dynamic>> checkOut(String scheduleId) async {
-    // 기존 체크아웃 코드 유지
+  /// 다가오는 스케줄 조회 API
+  static Future<Map<String, dynamic>> getUpcomingSchedules({int days = 7}) async {
     try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        return {'success': false, 'error': '로그인이 필요합니다'};
-      }
+      print('=== 🔜 다가오는 스케줄 조회 ===');
 
       final token = await AuthService.getAccessToken();
       if (token == null) {
-        return {'success': false, 'error': '인증 토큰이 없습니다'};
+        return {
+          'success': false,
+          'error': '인증 토큰이 없습니다.',
+        };
       }
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/schedules/$scheduleId/checkout'),
+      final response = await http.get(
+        Uri.parse('${AppConfig.apiBaseUrl}/schedules/upcoming?days=$days'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: json.encode({'checkOutTime': DateTime.now().toIso8601String()}),
       );
 
       if (response.statusCode == 200) {
-        final now = DateTime.now();
-        final timeString = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+        final data = json.decode(response.body);
         return {
           'success': true,
-          'message': '🌅 $timeString 퇴근 체크아웃 완료!',
+          'data': data['data'] ?? [],
+          'message': '다가오는 스케줄 조회 성공',
         };
       } else {
-        final error = json.decode(response.body);
-        return {'success': false, 'error': error['message'] ?? '체크아웃 실패'};
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['message'] ?? '다가오는 스케줄 조회에 실패했습니다.',
+        };
       }
     } catch (e) {
-      return {'success': false, 'error': '네트워크 오류: $e'};
+      print('❌ 다가오는 스케줄 조회 오류: $e');
+      return {
+        'success': false,
+        'error': '다가오는 스케줄 조회 중 오류가 발생했습니다: $e',
+      };
     }
   }
 }
