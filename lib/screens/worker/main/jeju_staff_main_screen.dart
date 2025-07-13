@@ -1,5 +1,3 @@
-// lib/screens/worker/main/jeju_staff_main_screen.dart - API 연동된 근무관리 화면
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -113,13 +111,38 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
   Future<void> _loadWorkSchedules() async {
     try {
-      // TODO: 실제 근무 스케줄 API 연동
-      // 현재는 빈 리스트로 초기화
-      setState(() {
-        _allSchedules = [];
-        _updateFilteredSchedules();
-      });
-      print('✅ 근무 스케줄 로드 완료 (${_allSchedules.length}개)');
+      print('=== 근무 스케줄 로드 시작 ===');
+
+      // 월별 스케줄 API 호출
+      final result = await WorkScheduleService.getMonthlySchedules(
+        year: _currentMonth.year,
+        month: _currentMonth.month,
+      );
+
+      if (result['success']) {
+        setState(() {
+          _allSchedules = result['data'] as List<WorkSchedule>;
+          _updateFilteredSchedules();
+        });
+        print('✅ 근무 스케줄 로드 완료 (${_allSchedules.length}개)');
+      } else {
+        print('❌ 근무 스케줄 로드 실패: ${result['error']}');
+        setState(() {
+          _allSchedules = [];
+          _updateFilteredSchedules();
+        });
+
+        // 에러 메시지 표시
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['error']),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     } catch (e) {
       print('❌ 근무 스케줄 로드 실패: $e');
       setState(() {
@@ -238,9 +261,9 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       opacity: _fadeAnimation,
       child: CustomScrollView(
         slivers: [
-          // 캘린더 (현재는 기본 캘린더만 표시)
+          // 캘린더 섹션
           SliverToBoxAdapter(
-            child: _buildSimpleCalendar(),
+            child: _buildCalendarSection(),
           ),
 
           // 간격
@@ -270,7 +293,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     );
   }
 
-  Widget _buildSimpleCalendar() {
+  Widget _buildCalendarSection() {
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
@@ -311,31 +334,165 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
           ),
           const SizedBox(height: 16),
 
-          // 현재는 간단한 달력 표시
-          Container(
-            padding: const EdgeInsets.all(16),
+          // 캘린더 그리드
+          _buildCalendarGrid(),
+
+          const SizedBox(height: 16),
+
+          // 스케줄 요약
+          _buildScheduleSummary(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarGrid() {
+    final daysInMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 0).day;
+    final firstDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final startDayOfWeek = firstDayOfMonth.weekday % 7;
+
+    return Column(
+      children: [
+        // 요일 헤더
+        Row(
+          children: ['일', '월', '화', '수', '목', '금', '토'].map((day) =>
+              Expanded(
+                child: Center(
+                  child: Text(
+                    day,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ),
+          ).toList(),
+        ),
+        const SizedBox(height: 8),
+
+        // 날짜 그리드
+        ...List.generate(6, (weekIndex) {
+          return Row(
+            children: List.generate(7, (dayIndex) {
+              final dayNumber = weekIndex * 7 + dayIndex - startDayOfWeek + 1;
+
+              if (dayNumber < 1 || dayNumber > daysInMonth) {
+                return const Expanded(child: SizedBox(height: 40));
+              }
+
+              final date = DateTime(_currentMonth.year, _currentMonth.month, dayNumber);
+              final isSelected = _isSameDay(date, _selectedDate);
+              final isToday = _isSameDay(date, DateTime.now());
+              final hasSchedule = _filteredSchedules.any((s) => _isSameDay(s.date, date));
+
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectDate(date),
+                  child: Container(
+                    height: 40,
+                    margin: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF00A3A3)
+                          : (isToday ? const Color(0xFF00A3A3).withOpacity(0.2) : null),
+                      borderRadius: BorderRadius.circular(8),
+                      border: hasSchedule && !isSelected
+                          ? Border.all(color: const Color(0xFF00A3A3), width: 1)
+                          : null,
+                    ),
+                    child: Center(
+                      child: Text(
+                        dayNumber.toString(),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected
+                              ? Colors.white
+                              : (isToday ? const Color(0xFF00A3A3) : Colors.black87),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+        }).where((row) =>
+        // 빈 행 제거
+        (row as Row).children.any((child) =>
+        (child as Expanded).child is GestureDetector
+        )
+        ).toList(),
+      ],
+    );
+  }
+
+  Widget _buildScheduleSummary() {
+    final monthlyScheduleCount = _filteredSchedules.length;
+    final completedCount = _filteredSchedules.where((s) => s.status == WorkStatus.completed).length;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF00A3A3).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Column(
               children: [
-                Icon(Icons.calendar_today, color: Color(0xFF00A3A3)),
-                SizedBox(width: 8),
                 Text(
-                  '근무 스케줄 API 연동 준비 중',
-                  style: TextStyle(
-                    fontSize: 14,
+                  monthlyScheduleCount.toString(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                     color: Color(0xFF00A3A3),
-                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Text(
+                  '이달 총 근무',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF00A3A3),
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4CAF50).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  completedCount.toString(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF4CAF50),
+                  ),
+                ),
+                const Text(
+                  '완료',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF4CAF50),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -472,6 +629,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             child: WorkScheduleCard(
               schedule: schedule,
               onTap: () => _showScheduleDetail(schedule),
+              onCheckIn: schedule.canCheckIn ? () => _handleCheckIn(schedule) : null,
+              onCheckOut: schedule.canCheckOut ? () => _handleCheckOut(schedule) : null,
               onEvaluate: schedule.canEvaluate
                   ? () => _showWorkplaceEvaluation(schedule)
                   : null,
@@ -484,6 +643,13 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
   }
 
   // 이벤트 핸들러들
+  void _selectDate(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+      _updateFilteredSchedules();
+    });
+  }
+
   void _changeMonth(int direction) {
     setState(() {
       _currentMonth = DateTime(
@@ -491,17 +657,26 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         _currentMonth.month + direction,
         1,
       );
-      _updateFilteredSchedules();
     });
+
+    // 새로운 월의 데이터 로드
+    _loadWorkSchedules();
   }
 
   void _goToToday() {
     final today = DateTime.now();
+    final needsReload = _currentMonth.year != today.year || _currentMonth.month != today.month;
+
     setState(() {
       _selectedDate = today;
       _currentMonth = DateTime(today.year, today.month, 1);
-      _updateFilteredSchedules();
     });
+
+    if (needsReload) {
+      _loadWorkSchedules();
+    } else {
+      _updateFilteredSchedules();
+    }
   }
 
   void _showOrumIndex() {
@@ -532,6 +707,138 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
     }
   }
 
+  Future<void> _handleCheckIn(WorkSchedule schedule) async {
+    try {
+      // 로딩 표시
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00A3A3)),
+          ),
+        ),
+      );
+
+      final result = await WorkScheduleService.checkIn(schedule.id);
+
+      // 로딩 다이얼로그 닫기
+      Navigator.pop(context);
+
+      if (result['success']) {
+        // 성공 메시지
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(result['message'] ?? '출근 체크인이 완료되었습니다'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF4CAF50),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // 스케줄 새로고침
+        _loadWorkSchedules();
+      } else {
+        // 에러 메시지
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(result['error']),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      // 로딩 다이얼로그 닫기
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('체크인에 실패했습니다: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleCheckOut(WorkSchedule schedule) async {
+    try {
+      // 로딩 표시
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00A3A3)),
+          ),
+        ),
+      );
+
+      final result = await WorkScheduleService.checkOut(schedule.id);
+
+      // 로딩 다이얼로그 닫기
+      Navigator.pop(context);
+
+      if (result['success']) {
+        // 성공 메시지
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(result['message'] ?? '퇴근 체크아웃이 완료되었습니다'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF4CAF50),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // 스케줄 새로고침
+        _loadWorkSchedules();
+      } else {
+        // 에러 메시지
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(result['error']),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      // 로딩 다이얼로그 닫기
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('체크아웃에 실패했습니다: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _showScheduleDetail(WorkSchedule schedule) {
     showModalBottomSheet(
       context: context,
@@ -543,7 +850,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
   Widget _buildScheduleDetailSheet(WorkSchedule schedule) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
+      height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -631,34 +938,133 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                     '상태',
                     schedule.statusText,
                   ),
+                  if (schedule.location != null)
+                    _buildDetailItem(
+                      Icons.location_on,
+                      '근무지',
+                      schedule.location!,
+                    ),
+                  if (schedule.hourlyRate != null)
+                    _buildDetailItem(
+                      Icons.attach_money,
+                      '시급',
+                      '${schedule.hourlyRate!.toStringAsFixed(0)}원',
+                    ),
+                  if (schedule.checkInTime != null)
+                    _buildDetailItem(
+                      Icons.login,
+                      '출근시간',
+                      '${schedule.checkInTime!.hour.toString().padLeft(2, '0')}:${schedule.checkInTime!.minute.toString().padLeft(2, '0')}',
+                    ),
+                  if (schedule.checkOutTime != null)
+                    _buildDetailItem(
+                      Icons.logout,
+                      '퇴근시간',
+                      '${schedule.checkOutTime!.hour.toString().padLeft(2, '0')}:${schedule.checkOutTime!.minute.toString().padLeft(2, '0')}',
+                    ),
+                  if (schedule.notes != null && schedule.notes!.isNotEmpty)
+                    _buildDetailItem(
+                      Icons.note,
+                      '메모',
+                      schedule.notes!,
+                    ),
                 ],
               ),
             ),
           ),
 
-          // 액션 버튼 (현재는 기본 닫기만)
+          // 액션 버튼들
           Padding(
             padding: const EdgeInsets.all(20),
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00A3A3),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+            child: Column(
+              children: [
+                if (schedule.canCheckIn)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _handleCheckIn(schedule);
+                      },
+                      icon: const Icon(Icons.login),
+                      label: const Text('출근 체크인'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF50),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                child: const Text(
-                  '확인',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                if (schedule.canCheckOut) ...[
+                  if (schedule.canCheckIn) const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _handleCheckOut(schedule);
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: const Text('퇴근 체크아웃'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF9800),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                ],
+                if (schedule.canEvaluate) ...[
+                  if (schedule.canCheckIn || schedule.canCheckOut) const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showWorkplaceEvaluation(schedule);
+                      },
+                      icon: const Icon(Icons.star),
+                      label: const Text('근무지 평가'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF00A3A3),
+                        side: const BorderSide(color: Color(0xFF00A3A3)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                if (!schedule.canCheckIn && !schedule.canCheckOut && !schedule.canEvaluate)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00A3A3),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        '확인',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

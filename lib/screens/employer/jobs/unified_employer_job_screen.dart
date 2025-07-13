@@ -1,10 +1,11 @@
-// lib/screens/employer/jobs/unified_employer_job_screen.dart - 기존 모델과 호환
+// lib/screens/employer/jobs/unified_employer_job_screen.dart - UnifiedAppHeader 적용
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../components/jobs/common_job_list.dart';
 import '../../../components/common/jeju_select_box.dart';
 import '../../../components/jobs/job_actions_row.dart';
+import '../../../components/common/unified_app_header.dart';
 import '../../../models/job_posting_model.dart';
 import 'job_management_screen.dart';
 import 'job_edit_screen.dart';
@@ -120,46 +121,18 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FFFE),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Row(
-          children: [
-            Text('🏢 ', style: TextStyle(fontSize: 20)),
-            Text(
-              '제주 일자리',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
-              ),
-            ),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(24),
-          child: Container(
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 16, bottom: 8),
-            child: Text(
-              '사업자님의 채용을 도와드립니다',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
+      appBar: UnifiedAppHeader(
+        title: '공고 관리',
+        subtitle: '사업자님의 채용을 도와드립니다',
+        emoji: '🏢',
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Color(0xFF2D3748), size: 22),
+            icon: const Icon(Icons.search, color: Colors.white, size: 22),
             onPressed: _showSearchDialog,
             tooltip: '검색',
           ),
           IconButton(
-            icon: const Icon(Icons.filter_list, color: Color(0xFF2D3748), size: 22),
+            icon: const Icon(Icons.filter_list, color: Colors.white, size: 22),
             onPressed: _showFilterDialog,
             tooltip: '필터',
           ),

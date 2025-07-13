@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../core/enums/user_type.dart';
+import '../../manager/worker_management_screen.dart';
 import '../../profile/mypage_screen.dart';
 import 'employer_main_screen.dart';
 import '../jobs/unified_employer_job_screen.dart';
@@ -47,17 +48,12 @@ class _EmployerMainWrapperState extends State<EmployerMainWrapper> {
         return const UnifiedEmployerJobScreen(initialTab: 0);
 
       case EmployerNavTab.manageStaff:
-      // 근무자 관리 - 준비 중
-        return _buildComingSoonScreen(
-          title: '근무자 관리',
-          subtitle: '지원자와 근무자를 관리하세요',
-          emoji: '👥',
-          description: '지원자 현황, 근무자 스케줄,\n출퇴근 관리 기능을 준비 중입니다',
-        );
+      // ✅ 완성된 근무자 관리 화면 연결
+        return const WorkerManagementScreen();
 
       case EmployerNavTab.home:
       // 홈 화면
-        return const EmployerMainScreen();
+        return EmployerMainScreen(onLogout: widget.onLogout);
 
       case EmployerNavTab.salary:
       // 급여 관리 - 준비 중
