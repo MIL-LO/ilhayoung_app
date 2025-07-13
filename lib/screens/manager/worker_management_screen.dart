@@ -140,25 +140,92 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
         final scheduleResult = results[1];
         final workersResult = results[2];
 
+        // 출석 데이터 처리 - 타입 안전성 강화
         if (attendanceResult['success']) {
-          final attendanceData = attendanceResult['data'] as List<dynamic>? ?? [];
-          _attendances = attendanceData.map((item) => WorkerAttendance.fromJson(item)).toList();
+          final attendanceData = attendanceResult['data'];
+          print('출석 데이터 타입: ${attendanceData.runtimeType}');
+          print('출석 데이터 내용: $attendanceData');
+
+          // 데이터 타입 확인 후 안전하게 처리
+          if (attendanceData is List) {
+            try {
+              _attendances = attendanceData.map((item) => WorkerAttendance.fromJson(item)).toList();
+            } catch (e) {
+              print('❌ WorkerAttendance 변환 오류: $e');
+              _attendances = [];
+            }
+          } else if (attendanceData is Map) {
+            // API가 Map 형태로 응답하는 경우
+            final attendancesList = attendanceData['attendances'] as List<dynamic>? ??
+                attendanceData['data'] as List<dynamic>? ??
+                [];
+            try {
+              _attendances = attendancesList.map((item) => WorkerAttendance.fromJson(item)).toList();
+            } catch (e) {
+              print('❌ WorkerAttendance 변환 오류 (Map): $e');
+              _attendances = [];
+            }
+          } else {
+            print('⚠️ 예상하지 못한 출석 데이터 형식: ${attendanceData.runtimeType}');
+            _attendances = [];
+          }
+        } else {
+          print('❌ 출석 데이터 로드 실패: ${attendanceResult['error']}');
+          _attendances = [];
         }
 
+        // 스케줄 데이터 처리 - 타입 안전성 강화
         if (scheduleResult['success']) {
-          final scheduleData = scheduleResult['data'] as List<dynamic>? ?? [];
-          _schedules = scheduleData.map((item) => WorkSchedule.fromJson(item)).toList();
+          final scheduleData = scheduleResult['data'];
+          print('스케줄 데이터 타입: ${scheduleData.runtimeType}');
+          print('스케줄 데이터 내용: $scheduleData');
+
+          if (scheduleData is List) {
+            try {
+              _schedules = scheduleData.map((item) => WorkSchedule.fromJson(item)).toList();
+            } catch (e) {
+              print('❌ WorkSchedule 변환 오류: $e');
+              _schedules = [];
+            }
+          } else if (scheduleData is Map) {
+            final schedulesList = scheduleData['schedules'] as List<dynamic>? ??
+                scheduleData['data'] as List<dynamic>? ??
+                [];
+            try {
+              _schedules = schedulesList.map((item) => WorkSchedule.fromJson(item)).toList();
+            } catch (e) {
+              print('❌ WorkSchedule 변환 오류 (Map): $e');
+              _schedules = [];
+            }
+          } else {
+            print('⚠️ 예상하지 못한 스케줄 데이터 형식: ${scheduleData.runtimeType}');
+            _schedules = [];
+          }
+        } else {
+          print('❌ 스케줄 데이터 로드 실패: ${scheduleResult['error']}');
+          _schedules = [];
         }
 
+        // 고용된 직원 데이터 처리
         if (workersResult['success']) {
           _hiredWorkers = workersResult['data'] as List<dynamic>? ?? [];
+          print('✅ 고용된 직원 수: ${_hiredWorkers.length}');
+        } else {
+          print('❌ 고용된 직원 데이터 로드 실패: ${workersResult['error']}');
+          _hiredWorkers = [];
         }
+
+        print('=== 데이터 로드 완료 ===');
+        print('출석 기록: ${_attendances.length}개');
+        print('스케줄: ${_schedules.length}개');
+        print('고용된 직원: ${_hiredWorkers.length}명');
 
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('❌ 전체 데이터 로드 오류: $e');
       if (mounted) {
         setState(() {
           _errorMessage = '데이터를 불러오는데 실패했습니다: $e';

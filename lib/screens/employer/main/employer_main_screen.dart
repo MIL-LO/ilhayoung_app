@@ -1,5 +1,3 @@
-// lib/screens/employer/main/employer_main_screen.dart - 에러 수정 버전
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../components/common/unified_app_header.dart';
@@ -14,9 +12,7 @@ class EmployerMainScreen extends StatefulWidget {
 }
 
 class _EmployerMainScreenState extends State<EmployerMainScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
-
-  // 애니메이션
+    with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   late AnimationController _slideController;
@@ -35,16 +31,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _initAnimations();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _fadeController.dispose();
-    _slideController.dispose();
-    super.dispose();
   }
 
   void _initAnimations() {
@@ -74,6 +61,13 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
 
     _fadeController.forward();
     _slideController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
   }
 
   @override
@@ -112,7 +106,6 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
     );
   }
 
-  // === 기존 UI 메서드들 ===
   Widget _buildWelcomeCard() {
     final now = DateTime.now();
     final hour = now.hour;
@@ -279,7 +272,6 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
                 '원',
                 Icons.trending_up,
                 Colors.green,
-                showBadge: false, // onTap 대신 showBadge 사용
               ),
             ),
           ],
@@ -313,90 +305,84 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   }
 
   Widget _buildDashboardCard(
-      String title,
-      String value,
-      String unit,
-      IconData icon,
-      Color color, {
-        bool showBadge = false,
-      }) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        _showNotImplementedMessage(title);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
+    String title,
+    String value,
+    String unit,
+    IconData icon,
+    Color color, {
+    bool showBadge = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const Spacer(),
-                if (showBadge)
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
+                child: Icon(icon, color: color, size: 20),
               ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+              const Spacer(),
+              if (showBadge)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 2),
-                Text(
-                  unit,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Text(
+                unit,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -422,7 +408,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
                 '새로운 인재 모집',
                 Icons.add_circle_outline,
                 const Color(0xFF2D3748), // 현무암색
-                    () => _showNotImplementedMessage('공고 작성'), // onTap 추가
+                () => _navigateToCreateJob(),
               ),
             ),
             const SizedBox(width: 12),
@@ -432,7 +418,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
                 '출근/퇴근 현황',
                 Icons.people_outline,
                 const Color(0xFF3498DB),
-                    () => _showNotImplementedMessage('근무자 관리'),
+                () => _navigateToManageStaff(),
               ),
             ),
           ],
@@ -446,7 +432,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
                 '새로운 지원자 확인',
                 Icons.inbox_outlined,
                 const Color(0xFFE74C3C),
-                    () => _showNotImplementedMessage('지원자 관리'),
+                () => _navigateToApplications(),
                 badge: _pendingApplications > 0 ? _pendingApplications : null,
               ),
             ),
@@ -457,7 +443,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
                 '이번 주 급여 미리보기',
                 Icons.calculate_outlined,
                 const Color(0xFF27AE60),
-                    () => _showNotImplementedMessage('급여 계산'),
+                () => _navigateToWageCalculator(),
               ),
             ),
           ],
@@ -467,13 +453,13 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   }
 
   Widget _buildActionButton(
-      String title,
-      String subtitle,
-      IconData icon,
-      Color color,
-      VoidCallback onTap, {
-        int? badge,
-      }) {
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap, {
+    int? badge,
+  }) {
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -566,47 +552,38 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
           ),
         ),
         const SizedBox(height: 16),
-        GestureDetector(
-          onTap: () => _showNotImplementedMessage('지원서 확인'),
-          child: _buildTaskCard(
-            '새로운 지원서 확인',
-            '카페 아르바이트에 7명, 홀서빙에 5명이 지원했어요',
-            Icons.mail_outline,
-            Colors.red,
-            isUrgent: true,
-          ),
+        _buildTaskCard(
+          '새로운 지원서 확인',
+          '카페 아르바이트에 7명, 홀서빙에 5명이 지원했어요',
+          Icons.mail_outline,
+          Colors.red,
+          isUrgent: true,
         ),
         const SizedBox(height: 12),
-        GestureDetector(
-          onTap: () => _showNotImplementedMessage('출근 관리'),
-          child: _buildTaskCard(
-            '오늘 출근 예정자',
-            '김○○, 이○○, 박○○님이 오늘 출근 예정입니다',
-            Icons.schedule,
-            Colors.blue,
-          ),
+        _buildTaskCard(
+          '오늘 출근 예정자',
+          '김○○, 이○○, 박○○님이 오늘 출근 예정입니다',
+          Icons.schedule,
+          Colors.blue,
         ),
         const SizedBox(height: 12),
-        GestureDetector(
-          onTap: () => _showNotImplementedMessage('급여 관리'),
-          child: _buildTaskCard(
-            '급여 지급 안내',
-            '이번 주 금요일 급여 지급일입니다',
-            Icons.account_balance_wallet,
-            Colors.green,
-          ),
+        _buildTaskCard(
+          '급여 지급 안내',
+          '이번 주 금요일 급여 지급일입니다',
+          Icons.account_balance_wallet,
+          Colors.green,
         ),
       ],
     );
   }
 
   Widget _buildTaskCard(
-      String title,
-      String description,
-      IconData icon,
-      Color color, {
-        bool isUrgent = false,
-      }) {
+    String title,
+    String description,
+    IconData icon,
+    Color color, {
+    bool isUrgent = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -731,11 +708,11 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   }
 
   Widget _buildActivityItem(
-      String activity,
-      String time,
-      IconData icon,
-      Color color,
-      ) {
+    String activity,
+    String time,
+    IconData icon,
+    Color color,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -780,19 +757,48 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
     return (amount / 10000).round().toString() + '만';
   }
 
-  // === 알림 메시지 ===
-  void _showNotImplementedMessage(String feature) {
+  // 네비게이션 메서드들
+  void _navigateToCreateJob() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$feature 기능은 해당 탭에서 이용할 수 있습니다'),
-        backgroundColor: const Color(0xFF2D3748),
-        duration: const Duration(seconds: 2),
-        action: SnackBarAction(
-          label: '확인',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
+        content: const Text('공고 작성 화면으로 이동'),
+        backgroundColor: const Color(0xFF2D3748), // 현무암색
+        duration: const Duration(seconds: 1),
       ),
     );
+    // TODO: 공고 작성 화면으로 이동
+  }
+
+  void _navigateToManageStaff() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('근무자 관리 화면으로 이동'),
+        backgroundColor: const Color(0xFF2D3748), // 현무암색
+        duration: const Duration(seconds: 1),
+      ),
+    );
+    // TODO: 근무자 관리 화면으로 이동
+  }
+
+  void _navigateToApplications() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('지원 현황 화면으로 이동'),
+        backgroundColor: const Color(0xFF2D3748), // 현무암색
+        duration: const Duration(seconds: 1),
+      ),
+    );
+    // TODO: 지원 현황 화면으로 이동
+  }
+
+  void _navigateToWageCalculator() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('급여 계산 화면으로 이동'),
+        backgroundColor: const Color(0xFF2D3748), // 현무암색
+        duration: const Duration(seconds: 1),
+      ),
+    );
+    // TODO: 급여 계산 화면으로 이동
   }
 }

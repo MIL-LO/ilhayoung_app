@@ -1,13 +1,12 @@
 // lib/services/worker_attendance_service.dart
 
 import 'dart:math' as math;
-
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WorkerAttendanceService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static const String baseUrl = 'https://api.ilhayoung.com';
 
   /// 전체 근로자 출석 현황 조회 (MANAGER)
   static Future<Map<String, dynamic>> getAttendanceOverview() async {
@@ -22,7 +21,7 @@ class WorkerAttendanceService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/attendances/overview'),
+        Uri.parse('$baseUrl/api/attendances/overview'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -79,7 +78,7 @@ class WorkerAttendanceService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/attendances/staff/$staffId/detail'),
+        Uri.parse('$baseUrl/api/attendances/staff/$staffId/detail'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -127,7 +126,7 @@ class WorkerAttendanceService {
     }
   }
 
-  /// 스태프 근무 상태 수정 (MANAGER)
+  /// 스태프 근무 상태 수정 (MANAGER) - 실제 API에 맞게 수정
   static Future<Map<String, dynamic>> updateStaffStatus(
       String staffId,
       String status,
@@ -150,7 +149,7 @@ class WorkerAttendanceService {
       };
 
       final response = await http.put(
-        Uri.parse('$baseUrl/attendances/staff/$staffId/status'),
+        Uri.parse('$baseUrl/api/attendances/staff/$staffId/status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -241,7 +240,7 @@ class WorkerAttendanceService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/attendances/overview?date=$date'),
+        Uri.parse('$baseUrl/api/attendances/overview?date=$date'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -300,7 +299,7 @@ class WorkerAttendanceService {
         return {'success': false, 'error': '로그인이 필요합니다'};
       }
 
-      String url = '$baseUrl/attendances/statistics';
+      String url = '$baseUrl/api/attendances/statistics';
       List<String> queryParams = [];
 
       if (startDate != null) {

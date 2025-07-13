@@ -1,5 +1,7 @@
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../config/app_config.dart';
 import '../models/worker_model.dart';
 import 'auth_service.dart';
 
@@ -309,5 +311,86 @@ class WorkerManagementService {
     print('============================');
 
     return result;
+  }
+
+  static Future<Map<String, dynamic>> updateApplicantStatus(
+      String jobId,
+      String applicantId,
+      String newStatus,
+      ) async {
+    try {
+      print('=== 지원자 상태 변경 ===');
+      print('공고 ID: $jobId');
+      print('지원자 ID: $applicantId');
+      print('새로운 상태: $newStatus');
+
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access_token');
+
+      if (accessToken == null) {
+        return {'success': false, 'error': '로그인이 필요합니다'};
+      }
+
+      final requestBody = {
+        'status': newStatus,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      final response = await http.put(
+        Uri.parse('${AppConfig.apiBaseUrl}/jobs/$jobId/applicants/$applicantId/status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: json.encode(requestBody),
+      );
+
+      print('요청 본문: $requestBody');
+      print('응답 상태 코드: ${response.statusCode}');
+      print('응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse['code'] == 'SUCCESS') {
+          return {
+            'success': true,
+            'message': jsonResponse['message'] ?? '지원자 상태가 변경되었습니다',
+            'data': jsonResponse['data'],
+          };
+        } else {
+          return {
+            'success': false,
+            'error': jsonResponse['message'] ?? '상태 변경에 실패했습니다',
+          };
+        }
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': '인증이 만료되었습니다. 다시 로그인해주세요.',
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'error': '해당 지원자를 찾을 수 없습니다',
+        };
+      } else if (response.statusCode == 400) {
+        final errorResponse = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorResponse['message'] ?? '잘못된 요청입니다',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': '서버 오류가 발생했습니다 (${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('❌ 지원자 상태 변경 예외: $e');
+      return {
+        'success': false,
+        'error': '네트워크 오류가 발생했습니다: $e',
+      };
+    }
   }
 }
