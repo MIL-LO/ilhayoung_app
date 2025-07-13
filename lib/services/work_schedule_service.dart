@@ -90,11 +90,15 @@ class WorkScheduleService {
     return await getSchedulesByMonth(year: year, month: month);
   }
 
-  /// 체크인 API
-  static Future<Map<String, dynamic>> checkIn(int scheduleId) async {
+  /// 체크인/체크아웃 API (실제 사용하는 엔드포인트)
+  static Future<Map<String, dynamic>> checkInOut({
+    required int scheduleId,
+    required String checkType, // 'CHECK_IN' 또는 'CHECK_OUT'
+  }) async {
     try {
-      print('=== 📍 체크인 API 호출 ===');
+      print('=== 📍 체크인/아웃 API 호출 ===');
       print('스케줄 ID: $scheduleId');
+      print('체크 타입: $checkType');
 
       final token = await AuthService.getAccessToken();
       if (token == null) {
@@ -104,84 +108,53 @@ class WorkScheduleService {
         };
       }
 
+      final requestBody = {
+        'scheduleId': scheduleId,
+        'checkType': checkType,
+      };
+
       final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/schedules/$scheduleId/checkin'),
+        Uri.parse('https://api.ilhayoung.com/api/attendances/check-in-out'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
+        body: json.encode(requestBody),
       );
 
-      print('체크인 응답: ${response.statusCode} - ${response.body}');
+      print('체크인/아웃 응답: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return {
           'success': true,
-          'message': data['message'] ?? '체크인이 완료되었습니다.',
+          'message': data['message'] ?? '체크${checkType == 'CHECK_IN' ? '인' : '아웃'}이 완료되었습니다.',
           'data': data['data'],
         };
       } else {
         final errorData = json.decode(response.body);
         return {
           'success': false,
-          'error': errorData['message'] ?? '체크인에 실패했습니다.',
+          'error': errorData['message'] ?? '체크${checkType == 'CHECK_IN' ? '인' : '아웃'}에 실패했습니다.',
         };
       }
     } catch (e) {
-      print('❌ 체크인 API 오류: $e');
+      print('❌ 체크인/아웃 API 오류: $e');
       return {
         'success': false,
-        'error': '체크인 중 오류가 발생했습니다: $e',
+        'error': '체크${checkType == 'CHECK_IN' ? '인' : '아웃'} 중 오류가 발생했습니다: $e',
       };
     }
   }
 
-  /// 체크아웃 API
-  static Future<Map<String, dynamic>> checkOut(int scheduleId) async {
-    try {
-      print('=== 📍 체크아웃 API 호출 ===');
-      print('스케줄 ID: $scheduleId');
+  /// 체크인 API (새로운 엔드포인트 사용)
+  static Future<Map<String, dynamic>> checkInNew(int scheduleId) async {
+    return await checkInOut(scheduleId: scheduleId, checkType: 'CHECK_IN');
+  }
 
-      final token = await AuthService.getAccessToken();
-      if (token == null) {
-        return {
-          'success': false,
-          'error': '인증 토큰이 없습니다.',
-        };
-      }
-
-      final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/schedules/$scheduleId/checkout'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print('체크아웃 응답: ${response.statusCode} - ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'success': true,
-          'message': data['message'] ?? '체크아웃이 완료되었습니다.',
-          'data': data['data'],
-        };
-      } else {
-        final errorData = json.decode(response.body);
-        return {
-          'success': false,
-          'error': errorData['message'] ?? '체크아웃에 실패했습니다.',
-        };
-      }
-    } catch (e) {
-      print('❌ 체크아웃 API 오류: $e');
-      return {
-        'success': false,
-        'error': '체크아웃 중 오류가 발생했습니다: $e',
-      };
-    }
+  /// 체크아웃 API (새로운 엔드포인트 사용)
+  static Future<Map<String, dynamic>> checkOutNew(int scheduleId) async {
+    return await checkInOut(scheduleId: scheduleId, checkType: 'CHECK_OUT');
   }
 
   /// 스케줄 상세 조회 API

@@ -873,7 +873,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         ),
       );
 
-      final result = await WorkScheduleService.checkIn(schedule.id as int);
+      final result = await WorkScheduleService.checkInNew(int.tryParse(schedule.id) ?? 0);
 
       // 로딩 다이얼로그 닫기
       Navigator.pop(context);
@@ -939,7 +939,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         ),
       );
 
-      final result = await WorkScheduleService.checkOut(schedule.id as int);
+      final result = await WorkScheduleService.checkOutNew(int.tryParse(schedule.id) ?? 0);
 
       // 로딩 다이얼로그 닫기
       Navigator.pop(context);
