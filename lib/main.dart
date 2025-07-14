@@ -12,7 +12,7 @@ void main() {
 
   // 카카오 SDK 초기화 - 어드민 키 사용
   KakaoSdk.init(
-    nativeAppKey: 'fb03d17c29c528ca587a8f2ac72345c0', // 어드민 키 사용
+    nativeAppKey: '', // 어드민 키 사용
   );
 
   // 웹에서는 시스템 UI 설정을 건너뛰기
