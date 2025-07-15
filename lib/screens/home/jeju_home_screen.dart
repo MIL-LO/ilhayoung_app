@@ -194,26 +194,37 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
       if (result['success']) {
         final data = result['data'];
         if (data is List) {
+          // API 응답을 WorkSchedule로 변환
+          final convertedSchedules = data.map((item) {
+            if (item is WorkSchedule) {
+              return item;
+            } else if (item is Map<String, dynamic>) {
+              return _convertApiToWorkSchedule(item);
+            } else {
+              print('⚠️ 알 수 없는 데이터 타입: ${item.runtimeType}');
+              return WorkSchedule(
+                id: 'unknown',
+                company: '알 수 없음',
+                position: '알 수 없음',
+                jobType: '알 수 없음',
+                date: DateTime.now(),
+                startTime: '09:00',
+                endTime: '18:00',
+                status: WorkStatus.scheduled,
+                paymentDate: null,
+              );
+            }
+          }).toList();
+
+          print('🔍 변환된 스케줄 수: ${convertedSchedules.length}개');
+          
+          // 중복 스케줄 제거 (같은 날짜에 여러 스케줄이 있을 때 우선순위 적용)
+          final deduplicatedSchedules = _removeDuplicateSchedules(convertedSchedules);
+          
+          print('🔍 중복 제거 후 스케줄 수: ${deduplicatedSchedules.length}개');
+          
           setState(() {
-            _allSchedules = data.map((item) {
-              if (item is WorkSchedule) {
-                return item;
-              } else if (item is Map<String, dynamic>) {
-                // API 응답을 WorkSchedule로 변환
-                return _convertApiToWorkSchedule(item);
-              } else {
-                print('⚠️ 알 수 없는 데이터 타입: ${item.runtimeType}');
-                return WorkSchedule(
-                  id: 'unknown',
-                  company: '알 수 없음',
-                  position: '알 수 없음',
-                  date: DateTime.now(),
-                  startTime: '09:00',
-                  endTime: '18:00',
-                  status: WorkStatus.scheduled,
-                );
-              }
-            }).toList();
+            _allSchedules = deduplicatedSchedules;
           });
         } else {
           setState(() {
@@ -381,13 +392,20 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
       final canCheckIn = true;  // 임시로 true로 설정
       final canCheckOut = true; // 임시로 true로 설정
       final statusMessage = apiData['statusMessage'] as String?;
+      
+      // paymentDate와 jobType 필드 추가
+      final paymentDate = apiData['paymentDate']?.toString();
+      final jobType = apiData['jobType']?.toString();
 
-      print('변환 완료 - id: $id, company: $company, date: $date, status: $status');
+      print('🔍 paymentDate 파싱: ${apiData['paymentDate']} -> $paymentDate');
+      print('🔍 jobType 파싱: ${apiData['jobType']} -> $jobType');
+      print('변환 완료 - id: $id, company: $company, date: $date, status: $status, paymentDate: $paymentDate, jobType: $jobType');
 
       return WorkSchedule(
         id: id,
         company: company,
         position: position,
+        jobType: jobType, // 직무 유형 추가
         date: date,
         startTime: startTime,
         endTime: endTime,
@@ -400,6 +418,7 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
         canCheckIn: canCheckIn,
         canCheckOut: canCheckOut,
         statusMessage: statusMessage,
+        paymentDate: paymentDate, // 지급일 추가
       );
     } catch (e) {
       print('❌ API 데이터 변환 오류: $e');
@@ -410,6 +429,7 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
         id: '0',
         company: '데이터 오류',
         position: '직무 미상',
+        jobType: '알 수 없음',
         date: DateTime.now(),
         startTime: '09:00',
         endTime: '18:00',
@@ -417,6 +437,7 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
         canCheckIn: false,
         canCheckOut: false,
         statusMessage: '데이터 파싱 오류',
+        paymentDate: null,
       );
     }
   }
@@ -444,6 +465,62 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
       }
     }
     return null;
+  }
+
+  // 중복 스케줄 제거 (같은 날짜에 여러 스케줄이 있을 때 우선순위 적용)
+  List<WorkSchedule> _removeDuplicateSchedules(List<WorkSchedule> schedules) {
+    print('🔍 중복 제거 시작 - 입력 스케줄 수: ${schedules.length}개');
+    
+    final Map<String, WorkSchedule> uniqueSchedules = {};
+    
+    for (final schedule in schedules) {
+      final dateKey = '${schedule.date.year}-${schedule.date.month.toString().padLeft(2, '0')}-${schedule.date.day.toString().padLeft(2, '0')}';
+      print('🔍 처리 중: ${dateKey} - ${schedule.status}');
+      
+      if (!uniqueSchedules.containsKey(dateKey)) {
+        uniqueSchedules[dateKey] = schedule;
+        print('  ✅ 새 스케줄 추가: ${schedule.status}');
+      } else {
+        // 이미 같은 날짜의 스케줄이 있으면 우선순위에 따라 선택
+        final existing = uniqueSchedules[dateKey]!;
+        final priority = _getStatusPriority(schedule.status);
+        final existingPriority = _getStatusPriority(existing.status);
+        
+        print('  🔄 중복 발견: 기존=${existing.status}(우선순위:$existingPriority) vs 새=${schedule.status}(우선순위:$priority)');
+        
+        if (priority > existingPriority) {
+          uniqueSchedules[dateKey] = schedule;
+          print('  ✅ 스케줄 교체: ${existing.status} → ${schedule.status}');
+        } else {
+          print('  ❌ 스케줄 유지: ${existing.status} (우선순위가 더 높음)');
+        }
+      }
+    }
+    
+    final result = uniqueSchedules.values.toList();
+    result.sort((a, b) => a.date.compareTo(b.date));
+    
+    print('🔍 중복 제거 완료: ${schedules.length}개 → ${result.length}개');
+    for (final schedule in result) {
+      print('  - ${schedule.date} ${schedule.status}');
+    }
+    return result;
+  }
+
+  // 상태별 우선순위 (높을수록 우선)
+  int _getStatusPriority(WorkStatus status) {
+    switch (status) {
+      case WorkStatus.present:
+        return 5; // 출근 중 (최고 우선순위)
+      case WorkStatus.completed:
+        return 4; // 완료
+      case WorkStatus.late:
+        return 3; // 지각
+      case WorkStatus.absent:
+        return 2; // 결근
+      case WorkStatus.scheduled:
+        return 1; // 예정 (최저 우선순위)
+    }
   }
 
   // API status 문자열을 WorkStatus enum으로 변환
@@ -501,12 +578,8 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
 
       final thisMonthPaymentDate = DateTime(now.year, now.month, paymentDay);
 
-      DateTime rangeEnd;
-      if (now.isBefore(thisMonthPaymentDate)) {
-        rangeEnd = now;
-      } else {
-        rangeEnd = thisMonthPaymentDate;
-      }
+      // 지급일까지의 급여 계산 (지급일이 지나지 않았으면 지급일까지, 지났으면 지급일까지)
+      final rangeEnd = thisMonthPaymentDate;
 
       print('💡 [디버깅] 지급일 $paymentDateStr, rangeEnd: $rangeEnd');
       print('💡 [디버깅] 이번달 지급일: $thisMonthPaymentDate');
