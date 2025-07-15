@@ -138,10 +138,16 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     print('URL 체크: $url');
 
     try {
-      final uri = Uri.parse(url);
+      // URL 디코딩 처리
+      final decodedUrl = Uri.decodeFull(url);
+      print('디코딩된 URL: $decodedUrl');
+      
+      final uri = Uri.parse(decodedUrl);
 
-      // 🔥 백엔드 호스트를 localhost:5000으로 변경 (개발 환경)
-      final isBackendHost = uri.host == 'localhost' && uri.port == 5000;
+      // 🔥 백엔드 호스트 체크 (개발/배포 환경 모두 지원)
+      final isBackendHost = (uri.host == 'localhost' && uri.port == 5000) ||
+                           (uri.host == 'api.ilhayoung.com') ||
+                           (uri.host.contains('ilhayoung.com'));
       final isCallbackPath = uri.path.contains('/login/oauth2/code/') ||
           uri.path.contains('/oauth/callback') ||
           uri.path.contains('/login/success');
@@ -150,7 +156,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
       print('Backend Host: $isBackendHost, Callback Path: $isCallbackPath');
 
       if (isBackendHost && isCallbackPath) {
-        print('성공 URL 감지');
+        print('✅ 성공 URL 감지');
         _hasFoundResult = true;
         _extractOAuthResponse();
         return;
@@ -158,7 +164,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
 
       // 에러 파라미터 처리
       if (uri.queryParameters.containsKey('error')) {
-        print('오류 URL 감지: ${uri.queryParameters['error']}');
+        print('❌ 오류 URL 감지: ${uri.queryParameters['error']}');
         _handleErrorResponse(uri.queryParameters['error_description'] ??
             uri.queryParameters['error'] ??
             'OAuth 인증에 실패했습니다.');
@@ -166,7 +172,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
       }
 
     } catch (e) {
-      print('URL 파싱 오류: $e');
+      print('❌ URL 파싱 오류: $e');
     }
   }
 
@@ -396,13 +402,13 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
   void _handleSuccessResponse() async {
     if (!mounted) return;
 
-    print('OAuth 성공 처리 - 토큰 창 없이 바로 완료');
+    print('✅ OAuth 성공 처리 - 콜백 URL 도달');
 
-    // 🔥 토큰 추출 로직 제거 - 바로 성공 응답 처리
+    // 🔥 배포 환경에서는 토큰이 서버에서 처리되므로 임시 토큰으로 처리
     final response = OAuthResponse(
       success: true,
-      message: 'OAuth 인증이 완료되었습니다.',
-      accessToken: null, // 토큰은 AuthWrapper에서 처리
+      message: 'OAuth 인증이 완료되었습니다. (토큰은 서버에서 처리)',
+      accessToken: 'temp_token', // 임시 토큰으로 처리
     );
 
     Navigator.of(context).pop(response);
@@ -421,13 +427,19 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     if (response.success == false) {
       print('❌ OAuth 실패: ${response.message}');
       
+      // 인증 만료 등의 특정 오류는 재시도 안내
+      String userMessage = response.message ?? '로그인에 실패했습니다.';
+      if (userMessage.contains('만료') || userMessage.contains('expired')) {
+        userMessage = '로그인 시간이 만료되었습니다. 다시 시도해주세요.';
+      }
+      
       // 안내 다이얼로그 표시
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => AlertDialog(
-          title: const Text('로그인 불가'),
-          content: Text(response.message ?? '로그인에 실패했습니다.'),
+          title: const Text('로그인 실패'),
+          content: Text(userMessage),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -443,7 +455,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     }
 
     // 🔥 응답에 토큰이 있으면 JWT 파싱 수행
-    if (response.success && response.accessToken != null) {
+    if (response.success && response.accessToken != null && response.accessToken != 'temp_token') {
       try {
         print('=== OAuthResponse에서 토큰 처리 시작 ===');
         await _processOAuthToken(response.accessToken!);
@@ -458,8 +470,8 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
         print('❌ OAuthResponse 토큰 처리 실패: $e');
       }
     } else if (response.success) {
-      // 토큰이 없지만 성공인 경우 (PENDING 상태)
-      print('✅ OAuth 성공 (토큰 없음) - 회원가입 필요');
+      // 토큰이 없거나 임시 토큰인 경우 (배포 환경)
+      print('✅ OAuth 성공 (토큰 없음 또는 임시 토큰) - 서버에서 처리');
       if (response.message != null && response.message!.isNotEmpty) {
         print('📝 백엔드 메시지: ${response.message}');
       }
