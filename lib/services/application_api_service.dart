@@ -4,9 +4,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/application_model.dart';
+import '../config/app_config.dart';
 
 class ApplicationApiService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   /// 내 지원내역 조회
   static Future<Map<String, dynamic>> getMyApplications({

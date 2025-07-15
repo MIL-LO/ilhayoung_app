@@ -31,6 +31,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
   final _formKey = GlobalKey<FormState>();
   final _birthDateController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _businessNameController = TextEditingController();
   final _businessAddressController = TextEditingController();
   final _businessNumberController = TextEditingController();
 
@@ -72,6 +73,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
     // 개발용 테스트 데이터 자동 입력
     _birthDateController.text = '1990-01-01';
     _phoneController.text = '010-1234-5678';
+    _businessNameController.text = '제주 힐링 카페';
     _businessAddressController.text = '제주시 연동 123-45 오션뷰빌딩 1층';
     _businessNumberController.text = '123-45-67890';
     _selectedBusinessType = '카페';
@@ -82,6 +84,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
     _fadeController.dispose();
     _birthDateController.dispose();
     _phoneController.dispose();
+    _businessNameController.dispose();
     _businessAddressController.dispose();
     _businessNumberController.dispose();
     super.dispose();
@@ -132,6 +135,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
   void _handleBackPress() {
     final hasInputData = _birthDateController.text.isNotEmpty ||
         _phoneController.text.isNotEmpty ||
+        _businessNameController.text.isNotEmpty ||
         _businessAddressController.text.isNotEmpty ||
         _businessNumberController.text.isNotEmpty;
 
@@ -357,7 +361,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
             label: '연락처',
             hint: '010-1234-5678',
             icon: Icons.phone,
-            keyboardType: TextInputType.phone,
+            keyboardType: TextInputType.number,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(11),
@@ -365,6 +369,17 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
             ],
             errorText: _validationErrors['phone'],
             onChanged: (_) => _clearError('phone'),
+          ),
+          const SizedBox(height: 20),
+
+          // 업장이름
+          _buildInputField(
+            controller: _businessNameController,
+            label: '업장이름',
+            hint: '제주 힐링 카페',
+            icon: Icons.store,
+            errorText: _validationErrors['businessName'],
+            onChanged: (_) => _clearError('businessName'),
           ),
           const SizedBox(height: 20),
 
@@ -637,7 +652,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '검증에 실패했지만 회원가입은 가능합니다',
+                  '검증이 필요합니다. 회원가입을 위해 검증을 완료해주세요',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.red[700],
@@ -845,7 +860,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
           setState(() {
             _isBusinessNumberVerified = false;
           });
-          _showSnackBar('검증 실패! 하지만 회원가입은 가능합니다.', Colors.orange);
+          _showSnackBar('검증 실패! 올바른 사업자등록번호를 입력해주세요.', Colors.red);
         }
       }
     } catch (e) {
@@ -854,7 +869,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
         setState(() {
           _isBusinessNumberVerified = false;
         });
-        _showSnackBar('검증 실패! 하지만 회원가입은 가능합니다.', Colors.orange);
+        _showSnackBar('검증 실패! 올바른 사업자등록번호를 입력해주세요.', Colors.red);
       }
     } finally {
       if (mounted) {
@@ -888,6 +903,13 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
       }
     }
 
+    // 업장이름 검증
+    if (_businessNameController.text.trim().isEmpty) {
+      errors['businessName'] = '업장이름을 입력해주세요';
+    } else if (_businessNameController.text.trim().length < 2) {
+      errors['businessName'] = '업장이름을 정확히 입력해주세요';
+    }
+
     // 사업장 주소 검증
     if (_businessAddressController.text.trim().isEmpty) {
       errors['businessAddress'] = '사업장 주소를 입력해주세요';
@@ -895,11 +917,12 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
       errors['businessAddress'] = '사업장 주소를 정확히 입력해주세요';
     }
 
-    // 사업자등록번호 검증 (필수 아님)
+    // 사업자등록번호 검증 (필수)
     if (_businessNumberController.text.isEmpty) {
       errors['businessNumber'] = '사업자등록번호를 입력해주세요';
+    } else if (_isBusinessNumberVerified != true) {
+      errors['businessNumber'] = '사업자등록번호 검증이 필요합니다';
     }
-    // 사업자등록번호 검증은 선택사항이므로 검증 실패해도 회원가입 가능
 
     return errors;
   }
@@ -927,6 +950,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
       print('📝 사업자 회원가입 데이터:');
       print('- 생년월일: ${_birthDateController.text.trim()}');
       print('- 연락처: ${_phoneController.text.trim()}');
+      print('- 업장이름: ${_businessNameController.text.trim()}');
       print('- 사업장 주소: ${_businessAddressController.text.trim()}');
       print('- 사업자등록번호: ${_businessNumberController.text.trim()}');
       print('- 업종: $_selectedBusinessType');
@@ -935,6 +959,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
       final result = await SignupService.completeManagerSignup(
         birthDate: _birthDateController.text.trim(),
         phone: _phoneController.text.trim(), // 하이픈 포함된 형태로 전송
+        businessName: _businessNameController.text.trim(),
         businessAddress: _businessAddressController.text.trim(),
         businessNumber: SignupService.formatBusinessNumber(_businessNumberController.text.trim()),
         businessType: _selectedBusinessType,
@@ -952,7 +977,7 @@ class _EmployerInfoInputScreenState extends ConsumerState<EmployerInfoInputScree
 
           // 4️⃣ AuthStateProvider 상태 업데이트 후 콜백 실행
           await Future.delayed(const Duration(milliseconds: 500));
-          widget.onComplete(UserType.employer);
+          widget.onComplete(UserType.manager);
 
         } else {
           print('❌ 사업자 회원가입 실패: ${result['error']}');

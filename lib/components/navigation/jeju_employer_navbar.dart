@@ -55,9 +55,9 @@ class _JejuEmployerNavBarState extends State<JejuEmployerNavBar> {
             children: [
               _buildNavItem(
                 tab: EmployerNavTab.createJob,
-                icon: Icons.add_circle_outline,
-                activeIcon: Icons.add_circle,
-                label: '공고 작성',
+                icon: Icons.work_outline,
+                activeIcon: Icons.work,
+                label: '공고',
                 badge: null,
               ),
               _buildNavItem(

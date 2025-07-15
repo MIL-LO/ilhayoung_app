@@ -3,11 +3,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/app_config.dart';
+
 import 'auth_service.dart';
+import '../config/app_config.dart';
 
 class UserSyncService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   /// 🔄 서버에서 현재 사용자 정보 가져와서 로컬과 동기화
   static Future<Map<String, dynamic>> syncUserFromServer() async {

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../providers/auth_state_provider.dart';
+
 import '../../core/enums/user_type.dart';
-import '../login/jeju_login_screen.dart';
-import '../profile/worker_info_input_screen.dart';
-import '../profile/employer_info_input_screen.dart';
-import '../worker/main/worker_main_screen.dart';
+import '../../providers/auth_state_provider.dart';
 import '../employer/main/employer_main_wrapper.dart';
+import '../login/jeju_login_screen.dart';
+import '../profile/employer_info_input_screen.dart';
+import '../profile/worker_info_input_screen.dart';
+import '../worker/main/worker_main_screen.dart';
 
 class AuthWrapper extends ConsumerStatefulWidget {
   const AuthWrapper({Key? key}) : super(key: key);

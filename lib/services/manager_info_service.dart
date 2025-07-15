@@ -1,11 +1,10 @@
-// lib/services/manager_info_service.dart - 사업자 정보 관리 서비스
-
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
 
 class ManagerInfoService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   /// 사업자 정보 조회 (GET /api/v1/users/manager)
   static Future<Map<String, dynamic>?> getManagerInfo() async {
@@ -62,7 +61,7 @@ class ManagerInfoService {
   }) async {
     try {
       print('=== 사업자 정보 수정 API 호출 ===');
-      print('수정 데이터: phone=$phone, businessAddress=$businessAddress, businessType=$businessType');
+      print('수정 데이터: phone= [0m$phone, businessAddress=$businessAddress, businessType=$businessType');
 
       final prefs = await SharedPreferences.getInstance();
       final accessToken = prefs.getString('access_token');
@@ -82,7 +81,7 @@ class ManagerInfoService {
 
       print('API 요청 데이터: $requestBody');
 
-      final url = '$baseUrl/users/me';
+      final url = '$baseUrl/users/manager';
       print('API 호출 URL: $url');
 
       final response = await http.patch(

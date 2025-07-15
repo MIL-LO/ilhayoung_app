@@ -3,13 +3,15 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
 
 class ScheduleManagementService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   /// 월별 스케줄 조회 (MANAGER/STAFF)
   static Future<Map<String, dynamic>> getMonthlySchedules({
-    String? month, // YYYY-MM 형식
+    int? year,
+    int? month,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -19,10 +21,12 @@ class ScheduleManagementService {
         return {'success': false, 'error': '로그인이 필요합니다'};
       }
 
-      String url = '$baseUrl/schedules';
-      if (month != null) {
-        url += '?month=$month';
-      }
+      // API 문서에 따르면 year와 month 파라미터가 필수
+      final currentDate = DateTime.now();
+      final targetYear = year ?? currentDate.year;
+      final targetMonth = month ?? currentDate.month;
+
+      final url = '$baseUrl/schedules?year=$targetYear&month=$targetMonth';
 
       final response = await http.get(
         Uri.parse(url),
@@ -78,7 +82,6 @@ class ScheduleManagementService {
 
       final requestBody = {
         'status': status,
-        'updatedAt': DateTime.now().toIso8601String(),
       };
 
       final response = await http.put(
@@ -295,7 +298,7 @@ class ScheduleManagementService {
 
       // 1. 월별 스케줄 조회로 기본 API 연결 테스트
       print('🔍 1. 기본 스케줄 조회 API 테스트');
-      final scheduleResult = await getMonthlySchedules(month: '2025-07');
+      final scheduleResult = await getMonthlySchedules(year: 2025, month: 7);
       print('스케줄 조회 결과: ${scheduleResult['success']}');
 
       if (!scheduleResult['success']) {
@@ -425,87 +428,7 @@ class ScheduleManagementService {
     }
   }
 
-  /// 하드코딩된 JSON 문자열로 마지막 시도
-  static Future<Map<String, dynamic>> _createScheduleWithHardcodedJson({
-    required String staffId,
-    required String jobId,
-    required DateTime startTime,
-    required DateTime endTime,
-    required double hourlyRate,
-    required String workLocation,
-    String? notes,
-    required String accessToken,
-  }) async {
-    try {
-      print('🔧 하드코딩된 JSON 문자열 방식으로 최종 시도');
 
-      // 완전히 하드코딩된 JSON 문자열 생성
-      final startTimeStr = startTime.toIso8601String();
-      final endTimeStr = endTime.toIso8601String();
-      final createdAtStr = DateTime.now().toIso8601String();
-
-      // 하드코딩된 JSON 문자열 (문자열 보간 없음)
-      final jsonParts = <String>[];
-      jsonParts.add('"staffId":"');
-      jsonParts.add(staffId);
-      jsonParts.add('","jobId":"');
-      jsonParts.add(jobId);
-      jsonParts.add('","startTime":"');
-      jsonParts.add(startTimeStr);
-      jsonParts.add('","endTime":"');
-      jsonParts.add(endTimeStr);
-      jsonParts.add('","hourlyRate":');
-      jsonParts.add(hourlyRate.toString());
-      jsonParts.add(',"status":"SCHEDULED","workLocation":"');
-      jsonParts.add(workLocation);
-      jsonParts.add('","createdAt":"');
-      jsonParts.add(createdAtStr);
-      jsonParts.add('"');
-
-      if (notes != null && notes.isNotEmpty) {
-        jsonParts.add(',"notes":"');
-        jsonParts.add(notes.replaceAll('"', '\\"'));
-        jsonParts.add('"');
-      }
-
-      final hardcodedJson = '{${jsonParts.join('')}}';
-
-      print('하드코딩된 JSON: $hardcodedJson');
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/schedules'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: hardcodedJson,
-      );
-
-      print('하드코딩 방식 응답 상태: ${response.statusCode}');
-      print('하드코딩 방식 응답 본문: ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final jsonResponse = json.decode(response.body);
-        if (jsonResponse['code'] == 'SUCCESS') {
-          return {
-            'success': true,
-            'data': jsonResponse['data'],
-            'message': '스케줄이 성공적으로 생성되었습니다 (하드코딩)',
-          };
-        }
-      }
-
-      // 모든 방식이 실패했을 때의 에러 처리
-      return _handleFailedResponse(response);
-
-    } catch (e) {
-      print('❌ 하드코딩 JSON 방식 오류: $e');
-      return {
-        'success': false,
-        'error': '하드코딩 JSON 전송 중 오류: $e',
-      };
-    }
-  }
 
   /// 실패한 응답 처리
   static Map<String, dynamic> _handleFailedResponse(http.Response response) {

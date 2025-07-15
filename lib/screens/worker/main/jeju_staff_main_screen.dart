@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 // 컴포넌트 imports
 import '../../../components/common/unified_app_header.dart';
-import '../../../components/work/work_calendar.dart';
 import '../../../components/work/work_schedule_card.dart';
-
+// 모델 imports
+import '../../../models/work_schedule.dart';
 // 서비스 imports
 import '../../../services/user_info_service.dart';
 import '../../../services/work_schedule_service.dart';
-
-// 모델 imports
-import '../../../models/work_schedule.dart';
-
+import '../../evaluation/orum_index_screen.dart';
 // 화면 imports
 import '../../evaluation/workplace_evaluation_screen.dart';
-import '../../evaluation/orum_index_screen.dart';
 
 class JejuStaffMainScreen extends StatefulWidget {
   final Function? onLogout;
@@ -182,6 +177,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       final id = apiData['id']?.toString() ?? '0';
       final company = apiData['companyName']?.toString() ?? '회사명 없음';
       final position = apiData['position']?.toString() ?? '직무 없음';
+      final jobType = apiData['jobType']?.toString(); // 직무 유형 추가
+      final paymentDate = apiData['paymentDate']?.toString(); // 지급일 추가
 
       // workDate를 date로 변환 (API에서는 workDate로 오지만 모델에서는 date 필요)
       DateTime date;
@@ -225,12 +222,51 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         }
       }
 
+      // 새로 추가된 필드들 파싱
+      final canCheckInRaw = apiData['canCheckIn'];
+      final canCheckOutRaw = apiData['canCheckOut'];
+      final statusMessage = apiData['statusMessage'] as String?;
+      
+      // bool 타입 안전 변환 (더 엄격한 검증)
+      bool canCheckIn = false;
+      bool canCheckOut = false;
+      
+      // canCheckIn 파싱
+      if (canCheckInRaw is bool) {
+        canCheckIn = canCheckInRaw;
+      } else if (canCheckInRaw is String) {
+        canCheckIn = canCheckInRaw.toLowerCase() == 'true';
+      } else if (canCheckInRaw is int) {
+        canCheckIn = canCheckInRaw == 1;
+      } else if (canCheckInRaw != null) {
+        canCheckIn = canCheckInRaw.toString().toLowerCase() == 'true';
+      }
+      
+      // canCheckOut 파싱
+      if (canCheckOutRaw is bool) {
+        canCheckOut = canCheckOutRaw;
+      } else if (canCheckOutRaw is String) {
+        canCheckOut = canCheckOutRaw.toLowerCase() == 'true';
+      } else if (canCheckOutRaw is int) {
+        canCheckOut = canCheckOutRaw == 1;
+      } else if (canCheckOutRaw != null) {
+        canCheckOut = canCheckOutRaw.toString().toLowerCase() == 'true';
+      }
+
       print('변환 완료 - id: $id, company: $company, date: $date, status: $status');
+      print('원본 canCheckIn: $canCheckInRaw (${canCheckInRaw.runtimeType}) -> 변환: $canCheckIn');
+      print('원본 canCheckOut: $canCheckOutRaw (${canCheckOutRaw.runtimeType}) -> 변환: $canCheckOut');
+      print('상태메시지: $statusMessage');
+      print('=== 최종 변환 결과 ===');
+      print('  - canCheckIn: $canCheckIn');
+      print('  - canCheckOut: $canCheckOut');
+      print('  - statusMessage: $statusMessage');
 
       return WorkSchedule(
-        id: '0', // String을 int로 안전하게 변환
+        id: id,
         company: company,
         position: position,
+        jobType: jobType, // 직무 유형 추가
         date: date,
         startTime: startTime,
         endTime: endTime,
@@ -240,6 +276,10 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         notes: notes,
         checkInTime: checkInTime,
         checkOutTime: checkOutTime,
+        canCheckIn: canCheckIn,
+        canCheckOut: canCheckOut,
+        statusMessage: statusMessage,
+        paymentDate: paymentDate, // 지급일 추가
       );
     } catch (e) {
       print('❌ API 데이터 변환 오류: $e');
@@ -254,6 +294,9 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         startTime: '09:00',
         endTime: '18:00',
         status: WorkStatus.scheduled,
+        canCheckIn: false,
+        canCheckOut: false,
+        statusMessage: '데이터 파싱 오류',
       );
     }
   }
@@ -331,7 +374,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       appBar: UnifiedAppHeader(
         title: '근무관리',
         subtitle: _userName.isNotEmpty ? '$_userName님의 스케줄' : '내 스케줄을 확인하세요',
-        emoji: '🗓️',
+        emoji: '��️',
         actions: [
           IconButton(
             icon: const Icon(Icons.star, color: Color(0xFFFFD700), size: 20),
@@ -508,20 +551,20 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
       children: [
         // 요일 헤더
         Row(
-          children: ['일', '월', '화', '수', '목', '금', '토'].map((day) =>
-              Expanded(
-                child: Center(
-                  child: Text(
-                    day,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[600],
+          children: ['일', '월', '화', '수', '목', '금', '토']
+              .map((day) => Expanded(
+                    child: Center(
+                      child: Text(
+                        day,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-          ).toList(),
+                  ))
+              .toList(),
         ),
         const SizedBox(height: 8),
 
@@ -574,8 +617,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
           );
         }).where((row) =>
         // 빈 행 제거
-        (row as Row).children.any((child) =>
-        (child as Expanded).child is GestureDetector
+        row.children.any((child) =>
+        child is Expanded && (child as Expanded).child is GestureDetector
         )
         ).toList(),
       ],
@@ -773,6 +816,14 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             (context, index) {
           final schedule = _selectedDateSchedules[index];
 
+          // 디버깅 로그 추가
+          print('🔍 스케줄 카드 빌드 - ID: ${schedule.id}');
+          print('  - canCheckIn: ${schedule.canCheckIn} (타입: ${schedule.canCheckIn.runtimeType})');
+          print('  - canCheckOut: ${schedule.canCheckOut} (타입: ${schedule.canCheckOut.runtimeType})');
+          print('  - statusMessage: ${schedule.statusMessage}');
+          print('  - onCheckIn 전달: ${schedule.canCheckIn == true}');
+          print('  - onCheckOut 전달: ${schedule.canCheckOut == true}');
+          
           return Padding(
             padding: EdgeInsets.only(
               left: 16,
@@ -782,8 +833,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             child: WorkScheduleCard(
               schedule: schedule,
               onTap: () => _showScheduleDetail(schedule),
-              onCheckIn: schedule.canCheckIn ? () => _handleCheckIn(schedule) : null,
-              onCheckOut: schedule.canCheckOut ? () => _handleCheckOut(schedule) : null,
+              onCheckIn: (schedule.canCheckIn == true) ? () => _handleCheckIn(schedule) : null,
+              onCheckOut: (schedule.canCheckOut == true) ? () => _handleCheckOut(schedule) : null,
               onEvaluate: schedule.canEvaluate
                   ? () => _showWorkplaceEvaluation(schedule)
                   : null,
@@ -873,7 +924,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         ),
       );
 
-      final result = await WorkScheduleService.checkInNew(int.tryParse(schedule.id) ?? 0);
+      // 스케줄 ID를 전달하지 않고 직접 체크인 (내부에서 오늘의 스케줄 조회)
+      final result = await WorkScheduleService.checkInNew('');
 
       // 로딩 다이얼로그 닫기
       Navigator.pop(context);
@@ -886,16 +938,20 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(result['message'] ?? '출근 체크인이 완료되었습니다'),
+                Expanded(
+                  child: Text(result['message'] ?? '출근 체크인이 완료되었습니다'),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF4CAF50),
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
           ),
         );
 
-        // 스케줄 새로고침
-        _loadWorkSchedulesFromAPI(); // 🎯 새로운 API 메서드 호출
+        // 스케줄 새로고침 (약간의 지연 후)
+        await Future.delayed(const Duration(milliseconds: 500));
+        _loadWorkSchedulesFromAPI();
       } else {
         // 에러 메시지
         ScaffoldMessenger.of(context).showSnackBar(
@@ -904,11 +960,18 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(result['error']),
+                Expanded(
+                  child: Text(
+                    result['error'] ?? '출근 체크인에 실패했습니다',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
               ],
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -918,9 +981,18 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('체크인에 실패했습니다: $e'),
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('체크인에 실패했습니다: $e'),
+              ),
+            ],
+          ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
         ),
       );
     }
@@ -939,7 +1011,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
         ),
       );
 
-      final result = await WorkScheduleService.checkOutNew(int.tryParse(schedule.id) ?? 0);
+      // 스케줄 ID를 전달하지 않고 직접 체크아웃 (내부에서 오늘의 스케줄 조회)
+      final result = await WorkScheduleService.checkOutNew('');
 
       // 로딩 다이얼로그 닫기
       Navigator.pop(context);
@@ -952,16 +1025,20 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(result['message'] ?? '퇴근 체크아웃이 완료되었습니다'),
+                Expanded(
+                  child: Text(result['message'] ?? '퇴근 체크아웃이 완료되었습니다'),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF4CAF50),
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
           ),
         );
 
-        // 스케줄 새로고침
-        _loadWorkSchedulesFromAPI(); // 🎯 새로운 API 메서드 호출
+        // 스케줄 새로고침 (약간의 지연 후)
+        await Future.delayed(const Duration(milliseconds: 500));
+        _loadWorkSchedulesFromAPI();
       } else {
         // 에러 메시지
         ScaffoldMessenger.of(context).showSnackBar(
@@ -970,11 +1047,18 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(result['error']),
+                Expanded(
+                  child: Text(
+                    result['error'] ?? '퇴근 체크아웃에 실패했습니다',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
               ],
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -984,9 +1068,18 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('체크아웃에 실패했습니다: $e'),
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('체크아웃에 실패했습니다: $e'),
+              ),
+            ],
+          ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
         ),
       );
     }
@@ -1131,7 +1224,8 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                if (schedule.canCheckIn)
+                // 출근 버튼 (출근 가능할 때만 표시)
+                if (schedule.canCheckIn ?? false)
                   SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -1148,11 +1242,14 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 2,
                       ),
                     ),
                   ),
-                if (schedule.canCheckOut) ...[
-                  if (schedule.canCheckIn) const SizedBox(height: 8),
+                
+                // 퇴근 버튼 (퇴근 가능할 때만 표시)
+                if (schedule.canCheckOut ?? false) ...[
+                  if (schedule.canCheckIn ?? false) const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -1169,12 +1266,46 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 2,
                       ),
                     ),
                   ),
                 ],
+                
+                // 상태 메시지 (출근/퇴근이 불가능할 때 표시)
+                if (!(schedule.canCheckIn ?? false) && !(schedule.canCheckOut ?? false) && schedule.statusMessage != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            schedule.statusMessage!,
+                            style: TextStyle(
+                              color: Colors.orange[700],
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                
+                // 근무지 평가 버튼
                 if (schedule.canEvaluate) ...[
-                  if (schedule.canCheckIn || schedule.canCheckOut) const SizedBox(height: 8),
+                  if ((schedule.canCheckIn ?? false) || (schedule.canCheckOut ?? false) || 
+                      (!(schedule.canCheckIn ?? false) && !(schedule.canCheckOut ?? false) && schedule.statusMessage != null))
+                    const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -1187,7 +1318,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                       label: const Text('근무지 평가'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF00A3A3),
-                        side: const BorderSide(color: Color(0xFF00A3A3)),
+                        side: const BorderSide(color: Color(0xFF00A3A3), width: 1.5),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -1195,7 +1326,9 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                     ),
                   ),
                 ],
-                if (!schedule.canCheckIn && !schedule.canCheckOut && !schedule.canEvaluate)
+                
+                // 확인 버튼 (다른 액션이 없을 때만 표시)
+                if (!(schedule.canCheckIn ?? false) && !(schedule.canCheckOut ?? false) && !schedule.canEvaluate && schedule.statusMessage == null)
                   SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -1207,6 +1340,7 @@ class _JejuStaffMainScreenState extends State<JejuStaffMainScreen>
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 2,
                       ),
                       child: const Text(
                         '확인',

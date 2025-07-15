@@ -43,24 +43,24 @@ class ApplicationCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: application.statusColor.withOpacity(0.1),
+                    color: (application.statusColor ?? Colors.grey).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        application.statusIcon,
+                        application.statusIcon ?? Icons.help_outline,
                         size: 14,
-                        color: application.statusColor,
+                        color: application.statusColor ?? Colors.grey,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        application.statusText,
+                        application.statusText ?? '알 수 없음',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: application.statusColor,
+                          color: application.statusColor ?? Colors.grey,
                         ),
                       ),
                     ],
@@ -78,6 +78,40 @@ class ApplicationCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
+            // 삭제된 공고인 경우
+            if (application.isRecruitDeleted ?? false) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_forever,
+                      size: 16,
+                      color: Colors.orange[700],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '삭제된 공고입니다',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
             // 회사명과 직무
             Text(
               application.company,
@@ -90,10 +124,10 @@ class ApplicationCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               application.jobTitle,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: (application.isRecruitDeleted ?? false) ? Colors.grey[500] : Colors.black87,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -148,15 +182,15 @@ class ApplicationCard extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onActionTap,
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: application.statusColor),
+                    side: BorderSide(color: application.statusColor ?? Colors.grey),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   child: Text(
-                    application.actionText,
+                    application.actionText ?? '',
                     style: TextStyle(
-                      color: application.statusColor,
+                      color: application.statusColor ?? Colors.grey,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

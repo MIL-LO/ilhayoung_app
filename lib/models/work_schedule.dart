@@ -12,6 +12,7 @@ class WorkSchedule {
   final String id;
   final String company;
   final String position;
+  final String? jobType; // 직무 유형 추가
   final DateTime date;
   final String startTime;
   final String endTime;
@@ -22,11 +23,16 @@ class WorkSchedule {
   final DateTime? checkInTime;
   final DateTime? checkOutTime;
   final bool canEvaluate;
+  final String? statusMessage;
+  final bool canCheckIn;
+  final bool canCheckOut;
+  final String? paymentDate; // 지급일 (예: "10", "15", "25")
 
   WorkSchedule({
     required this.id,
     required this.company,
     required this.position,
+    this.jobType, // 직무 유형 추가
     required this.date,
     required this.startTime,
     required this.endTime,
@@ -37,6 +43,10 @@ class WorkSchedule {
     this.checkInTime,
     this.checkOutTime,
     this.canEvaluate = false,
+    this.statusMessage,
+    this.canCheckIn = false,
+    this.canCheckOut = false,
+    this.paymentDate,
   });
 
   // API 응답에 맞게 수정된 fromJson
@@ -84,10 +94,14 @@ class WorkSchedule {
           json['jobTitle'] as String? ??
           '직책 정보 없음';
 
+      // 직무 유형 처리
+      String? jobType = json['jobType'] as String?;
+
       final schedule = WorkSchedule(
         id: json['id'] as String? ?? '',
         company: companyName,
         position: position,
+        jobType: jobType, // 직무 유형 추가
         date: parsedDate,
         startTime: parsedStartTime,
         endTime: parsedEndTime,
@@ -98,6 +112,10 @@ class WorkSchedule {
         checkInTime: _parseDateTime(json['checkInTime']),
         checkOutTime: _parseDateTime(json['checkOutTime']),
         canEvaluate: json['canEvaluate'] as bool? ?? false,
+        statusMessage: json['statusMessage'] as String?,
+        canCheckIn: json['canCheckIn'] as bool? ?? false,
+        canCheckOut: json['canCheckOut'] as bool? ?? false,
+        paymentDate: json['paymentDate'] as String?,
       );
 
       print('✅ WorkSchedule 파싱 완료: ${schedule.company} - ${schedule.date}');
@@ -115,6 +133,10 @@ class WorkSchedule {
         startTime: '09:00',
         endTime: '18:00',
         status: WorkStatus.scheduled,
+        statusMessage: '파싱 실패',
+        canCheckIn: true,
+        canCheckOut: true,
+        paymentDate: null,
       );
     }
   }
@@ -169,6 +191,7 @@ class WorkSchedule {
       'id': id,
       'company': company,
       'position': position,
+      'jobType': jobType, // 직무 유형 추가
       'date': date.toIso8601String(),
       'startTime': startTime,
       'endTime': endTime,
@@ -179,21 +202,25 @@ class WorkSchedule {
       'checkInTime': checkInTime?.toIso8601String(),
       'checkOutTime': checkOutTime?.toIso8601String(),
       'canEvaluate': canEvaluate,
+      'statusMessage': statusMessage,
+      'canCheckIn': canCheckIn,
+      'canCheckOut': canCheckOut,
+      'paymentDate': paymentDate,
     };
   }
 
   String get statusText {
     switch (status) {
       case WorkStatus.scheduled:
-        return '근무 예정';
+        return '예정';
       case WorkStatus.present:
-        return '정상 출근';
+        return '출근';
       case WorkStatus.absent:
         return '결근';
       case WorkStatus.late:
         return '지각';
       case WorkStatus.completed:
-        return '근무 완료';
+        return '완료';
     }
   }
 
@@ -227,18 +254,11 @@ class WorkSchedule {
     }
   }
 
-  bool get canCheckIn {
-    return status == WorkStatus.scheduled && checkInTime == null;
-  }
-
-  bool get canCheckOut {
-    return status == WorkStatus.present && checkOutTime == null;
-  }
-
   WorkSchedule copyWith({
     String? id,
     String? company,
     String? position,
+    String? jobType,
     DateTime? date,
     String? startTime,
     String? endTime,
@@ -249,11 +269,16 @@ class WorkSchedule {
     DateTime? checkInTime,
     DateTime? checkOutTime,
     bool? canEvaluate,
+    String? statusMessage,
+    bool? canCheckIn,
+    bool? canCheckOut,
+    String? paymentDate,
   }) {
     return WorkSchedule(
       id: id ?? this.id,
       company: company ?? this.company,
       position: position ?? this.position,
+      jobType: jobType ?? this.jobType,
       date: date ?? this.date,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
@@ -264,6 +289,39 @@ class WorkSchedule {
       checkInTime: checkInTime ?? this.checkInTime,
       checkOutTime: checkOutTime ?? this.checkOutTime,
       canEvaluate: canEvaluate ?? this.canEvaluate,
+      statusMessage: statusMessage ?? this.statusMessage,
+      canCheckIn: canCheckIn ?? this.canCheckIn,
+      canCheckOut: canCheckOut ?? this.canCheckOut,
+      paymentDate: paymentDate ?? this.paymentDate,
     );
+  }
+
+  /// 근무 시간 (시간 단위)
+  double get workHours {
+    try {
+      final startParts = startTime.split(':');
+      final endParts = endTime.split(':');
+      
+      final startHour = int.parse(startParts[0]);
+      final startMinute = int.parse(startParts[1]);
+      final endHour = int.parse(endParts[0]);
+      final endMinute = int.parse(endParts[1]);
+      
+      final startTotalMinutes = startHour * 60 + startMinute;
+      final endTotalMinutes = endHour * 60 + endMinute;
+      
+      final workMinutes = endTotalMinutes - startTotalMinutes;
+      return workMinutes / 60.0;
+    } catch (e) {
+      return 8.0; // 기본값
+    }
+  }
+
+  /// 일급 계산
+  double? get dailyWage {
+    if (hourlyRate != null) {
+      return hourlyRate! * workHours;
+    }
+    return null;
   }
 }

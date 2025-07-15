@@ -44,7 +44,7 @@ class _EmployerMainWrapperState extends State<EmployerMainWrapper> {
   Widget _buildCurrentScreen() {
     switch (_selectedTab) {
       case EmployerNavTab.createJob:
-      // 공고 작성 탭 - 통합 공고 화면의 전체 공고 탭으로 이동
+      // 공고 작성 탭 - 전체 공고와 내 공고를 볼 수 있는 화면으로 이동
         return const UnifiedEmployerJobScreen(initialTab: 0);
 
       case EmployerNavTab.manageStaff:
@@ -67,7 +67,7 @@ class _EmployerMainWrapperState extends State<EmployerMainWrapper> {
       case EmployerNavTab.mypage:
       // 마이페이지 - 로그아웃 콜백 전달
         return MyPageScreen(
-          userType: UserType.employer,
+          userType: UserType.manager,
           onLogout: widget.onLogout, // 로그아웃 콜백 전달
         );
     }

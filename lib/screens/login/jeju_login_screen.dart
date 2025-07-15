@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../core/enums/user_type.dart';
 import '../../services/oauth_service.dart';
+import '../../services/recruit_service.dart';
 import '../../providers/auth_state_provider.dart';
 import '../../components/jeju/jeju_carousel_slider.dart';
 import '../../components/login/user_type_selector.dart';
@@ -28,6 +29,95 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
   bool _isWorker = true;
   bool _isGoogleLoading = false;
   bool _isKakaoLoading = false;
+  Map<String, int> _categoryCounts = {};
+  bool _isLoadingCategories = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategoryCounts();
+  }
+
+  /// 카테고리별 공고 수 로드 (실제 jobType 기반)
+  Future<void> _loadCategoryCounts() async {
+    try {
+      print('=== 카테고리별 공고 수 로드 시작 ===');
+      
+      // 🔧 먼저 전체 공고를 조회해서 실제 jobType 확인
+      final result = await RecruitService.getFeaturedRecruits(size: 100);
+      
+      if (result['success']) {
+        final List<dynamic> recruits = result['data']['content'] ?? [];
+        print('📊 전체 공고 수: ${recruits.length}');
+        
+        // 🔧 제목 기반으로 카테고리 분류 (jobType 필드가 없으므로)
+        final Map<String, int> counts = {};
+        
+        for (final recruit in recruits) {
+          final title = recruit['title']?.toString() ?? '';
+          final companyName = recruit['companyName']?.toString() ?? '';
+          final workLocation = recruit['workLocation']?.toString() ?? '';
+          
+          print('🔍 공고 분석: $title (${companyName})');
+          
+          // 제목과 회사명을 기반으로 카테고리 분류
+          String category = _classifyCategory(title, companyName, workLocation);
+          
+          if (category.isNotEmpty) {
+            counts[category] = (counts[category] ?? 0) + 1;
+            print('✅ 분류 결과: $category');
+          }
+        }
+
+        // 전체 공고 수 추가
+        if (recruits.isNotEmpty) {
+          counts['전체'] = recruits.length;
+        }
+        
+        setState(() {
+          _categoryCounts = counts;
+          _isLoadingCategories = false;
+        });
+        
+        print('✅ 카테고리별 공고 수 로드 완료: $_categoryCounts');
+      } else {
+        print('❌ 공고 데이터 로드 실패: ${result['error']}');
+        setState(() {
+          _categoryCounts = {};
+          _isLoadingCategories = false;
+        });
+      }
+    } catch (e) {
+      print('❌ 카테고리별 공고 수 로드 오류: $e');
+      setState(() {
+        _categoryCounts = {};
+        _isLoadingCategories = false;
+      });
+    }
+  }
+
+  /// 제목과 회사명을 기반으로 카테고리 분류
+  String _classifyCategory(String title, String companyName, String workLocation) {
+    final text = '${title.toLowerCase()} ${companyName.toLowerCase()} ${workLocation.toLowerCase()}';
+    
+    if (text.contains('카페') || text.contains('커피') || text.contains('음료')) {
+      return '카페/음료';
+    } else if (text.contains('음식') || text.contains('요리') || text.contains('식당') || text.contains('레스토랑')) {
+      return '음식점/요리';
+    } else if (text.contains('매장') || text.contains('판매') || text.contains('상점') || text.contains('스토어')) {
+      return '매장/판매';
+    } else if (text.contains('호텔') || text.contains('펜션') || text.contains('숙박') || text.contains('리조트')) {
+      return '호텔/펜션';
+    } else if (text.contains('관광') || text.contains('레저') || text.contains('여행') || text.contains('투어')) {
+      return '관광/레저';
+    } else if (text.contains('농업') || text.contains('축산') || text.contains('농장') || text.contains('목장')) {
+      return '농업/축산';
+    } else if (text.contains('건설') || text.contains('공사') || text.contains('시공') || text.contains('공장')) {
+      return '건설/공사';
+    } else {
+      return '기타 서비스';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,81 +126,82 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          '일하영',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: false,
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: MediaQuery.of(context).size.height * 0.05),
-
-                // 메인 타이틀
-                Text(
-                  _isWorker
-                      ? '제주 바다처럼 넓은\n일자리를 찾아볼까요?'
-                      : '현무암처럼 든든한\n인재를 찾아볼까요?',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                    height: 1.2,
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 로고 이미지 추가
+              Center(
+                child: Image.asset(
+                  'assets/images/splash_logo.png',
+                  height: 80,
+                  width: 80,
+                  fit: BoxFit.contain,
                 ),
+              ),
 
-                SizedBox(height: MediaQuery.of(context).size.height * 0.08),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.01),
 
-                // 사용자 타입 선택
-                UserTypeSelector(
-                  isWorker: _isWorker,
-                  onTypeChanged: (isWorker) {
-                    setState(() {
-                      _isWorker = isWorker;
-                    });
-                  },
+              // 메인 타이틀
+              Text(
+                _isWorker
+                    ? '제주 바다처럼 넓은\n일자리를 찾아볼까요?'
+                    : '현무암처럼 든든한\n인재를 찾아볼까요?',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  height: 1.2,
                 ),
+              ),
 
-                const SizedBox(height: 24),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.04),
 
-                // 제주 캐러셀 슬라이더
-                const JejuCarouselSlider(
-                  height: 140,
-                  autoPlayDuration: Duration(seconds: 4),
-                  showText: false,
+              // 사용자 타입 선택
+              UserTypeSelector(
+                isWorker: _isWorker,
+                onTypeChanged: (isWorker) {
+                  setState(() {
+                    _isWorker = isWorker;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 20),
+
+              // 제주 캐러셀 슬라이더
+              Expanded(
+                child: JejuCarouselSlider(
+                  height: 120,
+                  autoPlayDuration: const Duration(seconds: 3),
+                  showText: true,
+                  categoryCounts: _categoryCounts,
                 ),
+              ),
 
-                SizedBox(height: MediaQuery.of(context).size.height * 0.06),
+              const SizedBox(height: 20),
 
-                // 카카오 로그인 버튼
-                _buildKakaoLoginButton(),
+              // 카카오 로그인 버튼
+              _buildKakaoLoginButton(),
 
-                const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-                // 구글 로그인 버튼
-                GoogleLoginButton(
-                  isLoading: _isGoogleLoading,
-                  isWorker: _isWorker,
-                  onPressed: _handleGoogleLogin,
-                ),
+              // 구글 로그인 버튼
+              GoogleLoginButton(
+                isLoading: _isGoogleLoading,
+                isWorker: _isWorker,
+                onPressed: _handleGoogleLogin,
+              ),
 
-                const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-                // 제주 감성 메시지
-                JejuMessageCard(isWorker: _isWorker),
-
-                SizedBox(height: MediaQuery.of(context).size.height * 0.03),
-              ],
-            ),
+              // 제주 감성 메시지
+              JejuMessageCard(isWorker: _isWorker),
+            ],
           ),
         ),
       ),
@@ -189,7 +280,7 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
     });
 
     try {
-      final userType = _isWorker ? UserType.worker : UserType.employer;
+      final userType = _isWorker ? UserType.worker : UserType.manager;
       print('=== 카카오 로그인 시작: $userType ===');
 
       final result = await OAuthService.signInWithOAuth(
@@ -237,7 +328,7 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
     });
 
     try {
-      final userType = _isWorker ? UserType.worker : UserType.employer;
+      final userType = _isWorker ? UserType.worker : UserType.manager;
       print('=== 구글 로그인 시작: $userType ===');
 
       final result = await OAuthService.signInWithOAuth(

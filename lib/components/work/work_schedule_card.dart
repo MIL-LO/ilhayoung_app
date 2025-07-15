@@ -20,6 +20,13 @@ class WorkScheduleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 디버깅 로그 추가
+    print('🎯 WorkScheduleCard 빌드 - ${schedule.company}');
+    print('  - onCheckIn: ${onCheckIn != null}');
+    print('  - onCheckOut: ${onCheckOut != null}');
+    print('  - canCheckIn: ${schedule.canCheckIn}');
+    print('  - canCheckOut: ${schedule.canCheckOut}');
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -68,6 +75,16 @@ class WorkScheduleCard extends StatelessWidget {
                             color: Colors.grey[600],
                           ),
                         ),
+                        if (schedule.jobType != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            schedule.jobType!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -102,7 +119,7 @@ class WorkScheduleCard extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // 시간 정보
+              // 시간/급여 정보
               Row(
                 children: [
                   Icon(
@@ -119,25 +136,65 @@ class WorkScheduleCard extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (schedule.hourlyRate != null) ...[
-                    const SizedBox(width: 16),
+                  const SizedBox(width: 12),
+                  Text(
+                    '(${schedule.workHours.toStringAsFixed(1)}시간)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(
+                    Icons.attach_money,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '시급: ',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                  Text(
+                    schedule.hourlyRate != null ? '${schedule.hourlyRate!.toStringAsFixed(0)}원' : '-',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[900], fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    '일급: ',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                  Text(
+                    schedule.dailyWage != null ? '${schedule.dailyWage!.toStringAsFixed(0)}원' : '-',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[900], fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              if (schedule.paymentDate != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
                     Icon(
-                      Icons.attach_money,
+                      Icons.payment,
                       size: 16,
                       color: Colors.grey[600],
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '${schedule.hourlyRate!.toStringAsFixed(0)}원',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
-                      ),
+                      '지급일: ',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                    ),
+                    Text(
+                      '매월 ${schedule.paymentDate}일',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[900], fontWeight: FontWeight.bold),
                     ),
                   ],
-                ],
-              ),
+                ),
+              ],
 
               if (schedule.location != null) ...[
                 const SizedBox(height: 8),
@@ -163,28 +220,12 @@ class WorkScheduleCard extends StatelessWidget {
               ],
 
               // 액션 버튼들
-              if (onCheckIn != null || onCheckOut != null || onEvaluate != null) ...[
+              if (onCheckOut != null || onEvaluate != null) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    if (onCheckIn != null)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: onCheckIn,
-                          icon: const Icon(Icons.login, size: 16),
-                          label: const Text('출근'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (onCheckIn != null && onCheckOut != null) const SizedBox(width: 8),
-                    if (onCheckOut != null)
+                    // 퇴근 버튼 (퇴근 가능할 때만 표시)
+                    if (onCheckOut != null && schedule.canCheckOut == true)
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: onCheckOut,
@@ -197,12 +238,13 @@ class WorkScheduleCard extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(6),
                             ),
+                            elevation: 1,
                           ),
                         ),
                       ),
-                    if ((onCheckIn != null || onCheckOut != null) && onEvaluate != null)
-                      const SizedBox(width: 8),
-                    if (onEvaluate != null)
+                    // 근무지 평가 버튼
+                    if (onEvaluate != null) ...[
+                      if (onCheckOut != null && schedule.canCheckOut == true) const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: onEvaluate,
@@ -210,7 +252,7 @@ class WorkScheduleCard extends StatelessWidget {
                           label: const Text('평가'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: const Color(0xFF00A3A3),
-                            side: const BorderSide(color: Color(0xFF00A3A3)),
+                            side: const BorderSide(color: Color(0xFF00A3A3), width: 1.5),
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(6),
@@ -218,8 +260,26 @@ class WorkScheduleCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
+                // 상태 메시지 (퇴근이 불가능할 때 표시)
+                if (schedule.statusMessage != null && (schedule.canCheckOut != true || onCheckOut == null)) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Text(
+                      schedule.statusMessage!,
+                      style: const TextStyle(fontSize: 12, color: Colors.orange),
+                    ),
+                  ),
+                ],
               ],
             ],
           ),

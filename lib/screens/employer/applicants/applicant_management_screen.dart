@@ -28,20 +28,18 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
   bool _isLoading = true;
   bool _isUpdating = false;
 
-  final List<String> _statusList = ['ALL', 'PENDING', 'REVIEWING', 'INTERVIEW', 'HIRED', 'REJECTED'];
+  final List<String> _statusList = ['ALL', 'APPLIED', 'INTERVIEW', 'HIRED', 'REJECTED'];
   final Map<String, String> _statusNames = {
     'ALL': '전체',
-    'PENDING': '검토 대기',
-    'REVIEWING': '검토 중',
+    'APPLIED': '대기중',
     'INTERVIEW': '면접 요청',
-    'HIRED': '승인',
+    'HIRED': '채용 확정',
     'REJECTED': '거절',
   };
 
   final Map<String, IconData> _statusIcons = {
     'ALL': Icons.people,
-    'PENDING': Icons.schedule,
-    'REVIEWING': Icons.rate_review,
+    'APPLIED': Icons.rate_review,
     'INTERVIEW': Icons.video_call,
     'HIRED': Icons.check_circle,
     'REJECTED': Icons.cancel,
@@ -101,14 +99,12 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
   void _updateApplicantsByStatus() {
     _applicantsByStatus = {
       'ALL': _allApplicants,
-      'PENDING': _allApplicants.where((a) =>
-      a.status == 'PENDING' || a.status == 'APPLIED').toList(),
-      'REVIEWING': _allApplicants.where((a) =>
-      a.status == 'REVIEWING').toList(),
+      'APPLIED': _allApplicants.where((a) =>
+      a.status == 'APPLIED').toList(),
       'INTERVIEW': _allApplicants.where((a) =>
       a.status == 'INTERVIEW').toList(),
       'HIRED': _allApplicants.where((a) =>
-      a.status == 'HIRED' || a.status == 'APPROVED').toList(),
+      a.status == 'HIRED').toList(),
       'REJECTED': _allApplicants.where((a) =>
       a.status == 'REJECTED').toList(),
     };
@@ -116,12 +112,18 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
     print('=== 상태별 필터링 결과 ===');
     _applicantsByStatus.forEach((status, applicants) {
       print('$status: ${applicants.length}명');
+      for (var applicant in applicants) {
+        print('  - ${applicant.name}: ${applicant.status}');
+      }
     });
   }
 
   // === 상태 변경 메서드 (핵심 수정 부분) ===
   Future<void> _updateApplicantStatus(String applicantId, String newStatus) async {
-    if (_isUpdating) return;
+    if (_isUpdating) {
+      print('⚠️ 이미 처리 중입니다. 중복 요청 무시');
+      return;
+    }
 
     setState(() => _isUpdating = true);
 
@@ -129,6 +131,16 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
       print('=== 지원자 상태 변경 시작 ===');
       print('지원자 ID: $applicantId');
       print('새로운 상태: $newStatus');
+
+      // HIRED 상태로 변경하는 경우, 이미 HIRED인지 확인
+      if (newStatus == 'HIRED') {
+        final currentApplicant = _allApplicants.firstWhere((a) => a.id == applicantId);
+        if (currentApplicant.status == 'HIRED') {
+          print('⚠️ 이미 HIRED 상태입니다. 중복 승인 무시');
+          _showInfoMessage('이미 승인된 지원자입니다');
+          return;
+        }
+      }
 
       // 1. 실제 API 호출로 서버 상태 변경
       final result = await ApplicantManagementService.updateApplicationStatus(
@@ -162,9 +174,17 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
         });
 
         final applicantName = _getApplicantName(applicantId);
-        _showSuccessMessage('$applicantName님의 상태가 ${_getStatusText(newStatus)}로 변경되었습니다');
-
-        print('✅ 로컬 상태 업데이트 완료');
+        
+        // HIRED 상태로 변경된 경우 스케줄 생성 결과도 표시
+        if (newStatus == 'HIRED') {
+          if (result['scheduleCreated'] == true) {
+            _showSuccessMessage('$applicantName님이 승인되었고 스케줄이 생성되었습니다');
+          } else {
+            _showSuccessMessage('$applicantName님이 승인되었으나 스케줄 생성에 실패했습니다');
+          }
+        } else {
+          _showSuccessMessage('$applicantName님의 상태가 ${_getStatusText(newStatus)}로 변경되었습니다');
+        }
 
       } else {
         _showErrorMessage(result['error'] ?? '상태 변경에 실패했습니다');
@@ -329,10 +349,10 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
               ),
               const SizedBox(width: 16),
               _buildSummaryItem(
-                '대기',
-                '${(_applicantsByStatus['PENDING'] ?? []).length}명',
-                Icons.schedule,
-                Colors.orange[300]!,
+                '대기중',
+                '${(_applicantsByStatus['APPLIED'] ?? []).length}명',
+                Icons.rate_review,
+                Colors.blue[300]!,
               ),
             ],
           ),
@@ -664,10 +684,9 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
   String _getEmptyStateMessage(String status) {
     switch (status) {
       case 'ALL': return '아직 지원한 사람이 없습니다.\n공고를 확인하고 홍보해보세요.';
-      case 'PENDING': return '검토 대기 중인 지원자가 없습니다.';
-      case 'REVIEWING': return '현재 검토 중인 지원자가 없습니다.';
+      case 'APPLIED': return '현재 대기중인 지원자가 없습니다.';
       case 'INTERVIEW': return '면접 요청한 지원자가 없습니다.';
-      case 'HIRED': return '승인된 지원자가 없습니다.';
+      case 'HIRED': return '채용 확정된 지원자가 없습니다.';
       case 'REJECTED': return '거절된 지원자가 없습니다.';
       default: return '해당 상태의 지원자가 없습니다.';
     }
@@ -1018,19 +1037,19 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
               child: OutlinedButton(
                 onPressed: _isUpdating ? null : () {
                   Navigator.pop(context);
-                  _updateApplicantStatus(applicant.id, 'PENDING');
+                  _updateApplicantStatus(applicant.id, 'APPLIED');
                 },
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.red[600]!),
+                  side: BorderSide(color: Colors.blue[600]!),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 child: Text(
-                  '재검토하기',
+                  '대기중으로 변경',
                   style: TextStyle(
-                    color: Colors.red[600],
+                    color: Colors.blue[600],
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1041,7 +1060,7 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
       );
     }
 
-    // 처리 가능한 상태인 경우 (PENDING, REVIEWING, INTERVIEW 등)
+    // 처리 가능한 상태인 경우 (APPLIED, INTERVIEW 등)
     return Container(
       margin: const EdgeInsets.all(20),
       child: Column(
@@ -1260,15 +1279,11 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
 
   Color _getStatusColor(String status) {
     switch (status.toUpperCase()) {
-      case 'PENDING':
       case 'APPLIED':
-        return const Color(0xFFFF9800);
-      case 'REVIEWING':
         return const Color(0xFF2196F3);
       case 'INTERVIEW':
         return const Color(0xFF9C27B0);
       case 'HIRED':
-      case 'APPROVED':
         return const Color(0xFF4CAF50);
       case 'REJECTED':
         return const Color(0xFFF44336);
@@ -1279,16 +1294,12 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen>
 
   String _getStatusText(String status) {
     switch (status.toUpperCase()) {
-      case 'PENDING':
       case 'APPLIED':
-        return '검토 대기';
-      case 'REVIEWING':
-        return '검토 중';
+        return '대기중';
       case 'INTERVIEW':
         return '면접 요청';
       case 'HIRED':
-      case 'APPROVED':
-        return '승인됨';
+        return '채용 확정';
       case 'REJECTED':
         return '거절됨';
       default:

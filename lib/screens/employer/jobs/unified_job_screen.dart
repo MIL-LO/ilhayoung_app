@@ -8,7 +8,9 @@ import '../../../components/jobs/job_banner.dart';
 import '../../../components/jobs/filter_bottom_sheet.dart';
 import '../../../components/jobs/job_detail_bottom_sheet.dart';
 import '../../../models/jeju_job_item.dart';
+import '../../../models/job_posting_model.dart'; // 공통 JobPosting 모델 import
 import '../../../services/mock_data_service.dart';
+import '../../../services/job_api_service.dart'; // Added import for JobApiService
 import 'job_management_screen.dart';
 
 class UnifiedJobScreen extends StatefulWidget {
@@ -88,53 +90,31 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
     }
   }
 
-  void _loadMyJobs() {
-    // 임시 내 공고 데이터
-    _myJobs = [
-      JobPosting(
-        id: '1',
-        title: '제주맛집카페 서빙 직원 모집',
-        company: '제주맛집카페',
-        status: JobStatus.active,
-        position: '서빙',
-        salary: '시급 12,000원',
-        workTime: '09:00 - 18:00',
-        location: '제주시 연동',
-        applicantCount: 12,
-        viewCount: 89,
-        createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        deadline: DateTime.now().add(const Duration(days: 14)),
-      ),
-      JobPosting(
-        id: '2',
-        title: '한라산펜션 프론트데스크 직원 모집',
-        company: '한라산펜션',
-        status: JobStatus.active,
-        position: '프론트데스크',
-        salary: '월급 2,200,000원',
-        workTime: '08:00 - 20:00',
-        location: '서귀포시 중문',
-        applicantCount: 8,
-        viewCount: 156,
-        createdAt: DateTime.now().subtract(const Duration(days: 7)),
-        deadline: DateTime.now().add(const Duration(days: 10)),
-      ),
-      JobPosting(
-        id: '3',
-        title: '제주감귤농장 수확 알바 모집',
-        company: '제주감귤농장',
-        status: JobStatus.closed,
-        position: '농장작업',
-        salary: '시급 15,000원',
-        workTime: '06:00 - 15:00',
-        location: '제주시 한림읍',
-        applicantCount: 25,
-        viewCount: 203,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        deadline: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-    ];
-    setState(() {});
+  void _loadMyJobs() async {
+    try {
+      print('=== 내 공고 API 호출 ===');
+      
+      // JobApiService를 사용하여 내 공고 조회
+      final result = await JobApiService.getJobPostings(myJobsOnly: true);
+      
+      if (result['success'] && mounted) {
+        setState(() {
+          _myJobs = result['data'] as List<JobPosting>;
+        });
+        print('✅ 내 공고 로드 성공: ${_myJobs.length}개');
+      } else {
+        print('❌ 내 공고 로드 실패: ${result['error']}');
+        // 실패 시 빈 리스트로 설정
+        setState(() {
+          _myJobs = [];
+        });
+      }
+    } catch (e) {
+      print('❌ 내 공고 로드 예외: $e');
+      setState(() {
+        _myJobs = [];
+      });
+    }
   }
 
   void _generateFallbackData() {
@@ -310,8 +290,8 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
       return _buildEmptyMyJobs();
     }
 
-    final activeJobs = _myJobs.where((job) => job.status == JobStatus.active).toList();
-    final closedJobs = _myJobs.where((job) => job.status == JobStatus.closed).toList();
+    final activeJobs = _myJobs.where((job) => job.isActive).toList();
+    final closedJobs = _myJobs.where((job) => !job.isActive).toList();
 
     return RefreshIndicator(
       onRefresh: _refreshMyJobs,
@@ -490,9 +470,9 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
   }
 
   Widget _buildMyJobsStats() {
-    final totalApplicants = _myJobs.fold(0, (sum, job) => sum + job.applicantCount);
+    final totalApplicants = _myJobs.fold(0, (sum, job) => sum + job.applicationCount);
     final totalViews = _myJobs.fold(0, (sum, job) => sum + job.viewCount);
-    final activeCount = _myJobs.where((job) => job.status == JobStatus.active).length;
+    final activeCount = _myJobs.where((job) => job.isActive).length;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -615,7 +595,7 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: job.status == JobStatus.active
+          color: job.isActive
               ? Colors.green.withOpacity(0.3)
               : Colors.grey.withOpacity(0.3),
         ),
@@ -630,6 +610,7 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 상단 정보
           Row(
             children: [
               Expanded(
@@ -645,7 +626,7 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${job.position} • ${job.salary}',
+                      '${job.position.isNotEmpty ? job.position : '직책 정보 없음'} • ${job.formattedSalary}',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -657,26 +638,62 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: job.status == JobStatus.active
+                  color: job.isActive
                       ? Colors.green.withOpacity(0.1)
                       : Colors.grey.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  job.status == JobStatus.active ? '활성' : '마감',
+                  job.isActive ? '활성' : '마감',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: job.status == JobStatus.active ? Colors.green : Colors.grey,
+                    color: job.isActive ? Colors.green : Colors.grey,
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
+          
+          // 근무 정보
           Row(
             children: [
-              _buildJobInfo(Icons.people, '${job.applicantCount}명 지원'),
+              _buildJobInfo(Icons.location_on, job.workLocation),
+              const SizedBox(width: 16),
+              _buildJobInfo(Icons.access_time, job.workScheduleText),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          // 근무 기간 및 모집인원 (API 데이터가 있는 경우)
+          if (_hasWorkPeriodInfo(job)) ...[
+            Row(
+              children: [
+                _buildJobInfo(Icons.calendar_today, _getWorkPeriodText(job)),
+                const SizedBox(width: 16),
+                _buildJobInfo(Icons.people_outline, '${_getRecruitmentCount(job)}명 모집'),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          
+          // 업체 정보 (API 데이터가 있는 경우)
+          if (_hasCompanyInfo(job)) ...[
+            Row(
+              children: [
+                _buildJobInfo(Icons.business, _getCompanyName(job)),
+                const SizedBox(width: 16),
+                _buildJobInfo(Icons.person, _getRepresentativeName(job)),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          
+          // 통계 정보
+          Row(
+            children: [
+              _buildJobInfo(Icons.people, '${job.applicationCount}명 지원'),
               const SizedBox(width: 16),
               _buildJobInfo(Icons.visibility, '${job.viewCount}회 조회'),
               const SizedBox(width: 16),
@@ -684,6 +701,8 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
             ],
           ),
           const SizedBox(height: 12),
+          
+          // 액션 버튼
           Row(
             children: [
               Expanded(
@@ -722,6 +741,43 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
         ],
       ),
     );
+  }
+
+  // 헬퍼 메서드들
+  bool _hasWorkPeriodInfo(JobPosting job) {
+    return job.workStartDate != null || job.workEndDate != null || job.workDurationMonths != null;
+  }
+
+  bool _hasCompanyInfo(JobPosting job) {
+    return job.companyName.isNotEmpty;
+  }
+
+  String _getWorkPeriodText(JobPosting job) {
+    if (job.workStartDate != null && job.workEndDate != null) {
+      final start = job.workStartDate!;
+      final end = job.workEndDate!;
+      final months = job.workDurationMonths ?? _calculateMonths(start, end);
+      return '${start.month}/${start.day}~${end.month}/${end.day} (${months}개월)';
+    }
+    
+    return job.workSchedule.workPeriodText;
+  }
+
+  int _getRecruitmentCount(JobPosting job) {
+    return job.recruitmentCount ?? 1;
+  }
+
+  String _getCompanyName(JobPosting job) {
+    return job.companyName;
+  }
+
+  String _getRepresentativeName(JobPosting job) {
+    // 공통 모델에는 representativeName이 없으므로 기본값 반환
+    return '정보 없음';
+  }
+
+  int _calculateMonths(DateTime start, DateTime end) {
+    return ((end.year - start.year) * 12 + end.month - start.month).abs();
   }
 
   Widget _buildJobInfo(IconData icon, String text) {
@@ -801,20 +857,18 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
   }
 
   Future<void> _refreshMyJobs() async {
-    await Future.delayed(const Duration(seconds: 1));
-    _loadMyJobs();
+    await _loadMyJobs();
   }
 
-  void _navigateToCreateJob() {
-    Navigator.push(
+  void _navigateToCreateJob() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const JobManagementScreen(),
       ),
-    ).then((_) {
-      // 공고 작성 후 돌아왔을 때 내 공고 새로고침
-      _loadMyJobs();
-    });
+    );
+    // 공고 작성 후 돌아왔을 때 내 공고 새로고침
+    _loadMyJobs();
   }
 
   void _showLocationPicker() {
@@ -931,40 +985,4 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
     final difference = deadline.difference(now).inDays;
     return difference > 0 ? difference : 0;
   }
-}
-
-// JobPosting 모델 클래스
-class JobPosting {
-  final String id;
-  final String title;
-  final String company;
-  final JobStatus status;
-  final String position;
-  final String salary;
-  final String workTime;
-  final String location;
-  final int applicantCount;
-  final int viewCount;
-  final DateTime createdAt;
-  final DateTime deadline;
-
-  JobPosting({
-    required this.id,
-    required this.title,
-    required this.company,
-    required this.status,
-    required this.position,
-    required this.salary,
-    required this.workTime,
-    required this.location,
-    required this.applicantCount,
-    required this.viewCount,
-    required this.createdAt,
-    required this.deadline,
-  });
-}
-
-enum JobStatus {
-  active,
-  closed,
 }

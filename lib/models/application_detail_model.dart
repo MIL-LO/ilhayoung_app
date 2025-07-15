@@ -85,20 +85,14 @@ class ApplicationDetail {
 
   String get statusDisplayText {
     switch (status.toUpperCase()) {
-      case 'PENDING':
+      case 'APPLIED':
         return '대기중';
-      case 'REVIEWING':
-        return '검토중';
       case 'INTERVIEW':
-        return '면접';
-      case 'OFFER':
-        return '제안';
+        return '면접 요청';
       case 'HIRED':
-        return '채용확정';
+        return '채용 확정';
       case 'REJECTED':
         return '거절됨';
-      case 'CANCELLED':
-        return '취소됨';
       default:
         return status;
     }

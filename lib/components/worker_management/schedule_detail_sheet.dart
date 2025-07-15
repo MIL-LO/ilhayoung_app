@@ -130,14 +130,6 @@ class ScheduleDetailSheet extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           _buildSection(
-            '근무 정보',
-            Icons.work,
-            [
-              _buildWorkInfoCard(),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _buildSection(
             '급여 정보',
             Icons.attach_money,
             [
@@ -279,11 +271,9 @@ class ScheduleDetailSheet extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildInfoItem('시작', _formatTime(schedule.startTime), Icons.play_arrow),
+              _buildInfoItem('근무지', schedule.workLocation, Icons.place),
               const SizedBox(width: 16),
-              _buildInfoItem('종료', _formatTime(schedule.endTime), Icons.stop),
-              const SizedBox(width: 16),
-              _buildInfoItem('시간', schedule.durationText, Icons.schedule),
+              _buildInfoItem('근무시간', schedule.durationText, Icons.schedule),
             ],
           ),
         ],
@@ -388,15 +378,15 @@ class ScheduleDetailSheet extends StatelessWidget {
       child: Column(
         children: [
           if (schedule.createdAt != null)
-            _buildInfoRow(
+            _buildInfoRowDateTime(
               '생성일시',
-              _formatDateTime(schedule.createdAt!),
+              schedule.createdAt!,
               Icons.add_circle_outline,
             ),
           if (schedule.updatedAt != null)
-            _buildInfoRow(
+            _buildInfoRowDateTime(
               '수정일시',
-              _formatDateTime(schedule.updatedAt!),
+              schedule.updatedAt!,
               Icons.edit,
             ),
         ],
@@ -404,14 +394,14 @@ class ScheduleDetailSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoItem(String label, String value, IconData icon) {
+  Widget _buildInfoItem(String label, dynamic value, IconData icon) {
     return Expanded(
       child: Column(
         children: [
           Icon(icon, size: 16, color: Colors.grey[600]),
           const SizedBox(height: 4),
           Text(
-            value,
+            value is DateTime ? _formatTime(value) : value.toString(),
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
@@ -488,6 +478,45 @@ class ScheduleDetailSheet extends StatelessWidget {
           Expanded(
             child: Text(
               value,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRowDateTime(String label, DateTime value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: Colors.grey[600],
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _formatDateTime(value),
               style: const TextStyle(
                 fontSize: 14,
                 color: Colors.black87,
@@ -683,6 +712,11 @@ class ScheduleDetailSheet extends StatelessWidget {
       default:
         return '상태를 확인할 수 없습니다';
     }
+  }
+
+  // DateTime을 그대로 반환 (오늘 날짜 기준 변환 불필요)
+  DateTime _localTimeToDateTime(DateTime dateTime) {
+    return dateTime;
   }
 
   String _formatTime(DateTime dateTime) {

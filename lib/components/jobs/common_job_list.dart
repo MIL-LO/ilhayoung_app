@@ -322,8 +322,8 @@ class CommonJobListState extends State<CommonJobList> {
     // 활성 상태이고 마감되지 않은 공고를 활성 공고로 간주
     final activeJobs = _jobPostings.where((job) => job.status == 'ACTIVE' && !job.isExpired).length;
     final totalApplicants = _jobPostings.fold<int>(0, (sum, job) => sum + job.applicationCount);
-    // viewCount가 없으므로 임시로 조회수 계산 (실제로는 API에서 제공해야 함)
-    final totalViews = _jobPostings.fold<int>(0, (sum, job) => sum + (job.applicationCount * 5)); // 임시 계산
+    // viewCount를 정확하게 사용
+    final totalViews = _jobPostings.fold<int>(0, (sum, job) => sum + job.viewCount);
 
     return SliverToBoxAdapter(
       child: Container(
@@ -602,6 +602,32 @@ class CommonJobListState extends State<CommonJobList> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+
+            // 근무 기간 및 모집인원
+            Row(
+              children: [
+                Icon(Icons.date_range, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  _getWorkPeriodText(job),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Icon(Icons.group, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  '모집 ${_getRecruitmentCount(job)}명',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
 
             // 하단 정보
@@ -759,4 +785,25 @@ class CommonJobListState extends State<CommonJobList> {
   // getter: 현재 공고 수
   int get totalJobs => _totalElements;
   List<JobPosting> get jobs => _jobPostings;
+
+  String _getWorkPeriodText(JobPosting job) {
+    if (job.workStartDate != null && job.workEndDate != null) {
+      String dateRange = '${job.workStartDate.toString().substring(0, 10)} - ${job.workEndDate.toString().substring(0, 10)}';
+      if (job.workDurationMonths != null) {
+        return '$dateRange (${job.workDurationMonths}개월)';
+      }
+      return dateRange;
+    }
+    if (job.workDurationMonths != null) {
+      return '${job.workDurationMonths}개월';
+    }
+    return '기간 미정';
+  }
+
+  String _getRecruitmentCount(JobPosting job) {
+    if (job.recruitmentCount != null) {
+      return job.recruitmentCount.toString();
+    }
+    return '미정';
+  }
 }

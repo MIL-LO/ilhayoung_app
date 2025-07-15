@@ -303,34 +303,48 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   Widget _buildErrorWidget() {
     final color = widget.isEmployerMode ? const Color(0xFF2D3748) : const Color(0xFF00A3A3);
 
+    // 삭제된 공고인지 확인
+    final isDeletedRecruit = _errorMessage?.contains('삭제된 채용 공고') == true;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.error_outline,
+            isDeletedRecruit ? Icons.delete_forever : Icons.error_outline,
             size: 64,
-            color: Colors.red[400],
+            color: isDeletedRecruit ? Colors.orange[400] : Colors.red[400],
           ),
           const SizedBox(height: 16),
           Text(
-            _errorMessage!,
+            isDeletedRecruit ? '삭제된 공고입니다' : _errorMessage!,
             style: TextStyle(
               fontSize: 16,
-              color: Colors.red[400],
+              color: isDeletedRecruit ? Colors.orange[400] : Colors.red[400],
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _loadJobDetail,
-            icon: const Icon(Icons.refresh),
-            label: const Text('다시 시도'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
+          const SizedBox(height: 8),
+          if (isDeletedRecruit)
+            Text(
+              '이 공고는 작성자에 의해 삭제되었습니다.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
+          const SizedBox(height: 24),
+          if (!isDeletedRecruit)
+            ElevatedButton.icon(
+              onPressed: _loadJobDetail,
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+              ),
+            ),
         ],
       ),
     );
@@ -385,9 +399,16 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
               widget.isEmployerMode ? '🏢 근무 조건' : '🏢 근무 정보',
               [
                 _buildDetailItem('근무지', _jobDetail?['workLocation'] ?? widget.job.workLocation),
-                _buildDetailItem('근무시간', _jobDetail?['workTime'] ?? widget.job.workScheduleText),
-                _buildDetailItem('근무요일', _jobDetail?['workDays'] ?? widget.job.workDaysText),
-                _buildDetailItem('근무기간', _jobDetail?['workPeriod'] ?? widget.job.workSchedule.workPeriodText),
+                _buildDetailItem('근무시간', _jobDetail?['startTime'] != null && _jobDetail?['endTime'] != null 
+                    ? '${_jobDetail!['startTime']} ~ ${_jobDetail!['endTime']}'
+                    : widget.job.workScheduleText),
+                _buildDetailItem('근무요일', _jobDetail?['workDays'] != null 
+                    ? (_jobDetail!['workDays'] as List).join(', ')
+                    : widget.job.workDaysText),
+                _buildDetailItem('근무기간', _getWorkPeriodText()),
+                _buildDetailItem('직종', _jobDetail?['jobType'] ?? '정보 없음'),
+                _buildDetailItem('직책', _jobDetail?['position'] ?? '정보 없음'),
+                _buildDetailItem('성별', _jobDetail?['gender'] ?? '무관'),
               ]
           ),
 
@@ -395,15 +416,47 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           _buildDetailSection(
               widget.isEmployerMode ? '📊 채용 현황' : '📋 채용 정보',
               [
-                _buildDetailItem('모집인원', _jobDetail?['recruitCount']?.toString() ?? '1명'),
-                _buildDetailItem('지원자 수', '${widget.job.applicationCount}명'),
+                _buildDetailItem('모집인원', _jobDetail?['recruitmentCount']?.toString() ?? '1명'),
+                _buildDetailItem('지원자 수', '${_jobDetail?['applicationCount'] ?? 0}명'),
+                _buildDetailItem('조회수', '${_jobDetail?['viewCount'] ?? 0}회'),
                 _buildDetailItem('등록일', _formatDate(widget.job.createdAt)),
                 _buildDetailItem('마감일', _formatDate(widget.job.deadline)),
+                _buildDetailItem('급여 지급일', _jobDetail?['paymentDate'] ?? '정보 없음'),
               ]
           ),
 
+          // 업체 정보
+          _buildDetailSection('🏢 업체 정보', [
+            _buildDetailItem('업체명', _jobDetail?['companyName'] ?? widget.job.companyName),
+            _buildDetailItem('업체 주소', _jobDetail?['companyAddress'] ?? '정보 없음'),
+            _buildDetailItem('연락처', _jobDetail?['companyContact'] ?? '정보 없음'),
+            _buildDetailItem('대표자명', _jobDetail?['representativeName'] ?? '정보 없음'),
+          ]),
+
+          // 상세 설명 (API에서 받은 상세 정보)
+          if (_jobDetail?['description'] != null && _jobDetail!['description'].toString().isNotEmpty) ...[
+            _buildDetailSection('📝 상세 설명', [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _jobDetail!['description'],
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ]),
+          ],
+
           // 업무 내용 (API에서 받은 상세 정보)
-          if (_jobDetail?['jobDescription'] != null) ...[
+          if (_jobDetail?['jobDescription'] != null && _jobDetail!['jobDescription'].toString().isNotEmpty) ...[
             _buildDetailSection('📝 업무 내용', [
               Container(
                 width: double.infinity,
@@ -425,7 +478,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           ],
 
           // 자격 요건 (API에서 받은 상세 정보)
-          if (_jobDetail?['requirements'] != null) ...[
+          if (_jobDetail?['requirements'] != null && _jobDetail!['requirements'].toString().isNotEmpty) ...[
             _buildDetailSection('✅ 자격 요건', [
               Container(
                 width: double.infinity,
@@ -447,7 +500,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           ],
 
           // 우대사항 (API에서 받은 상세 정보)
-          if (_jobDetail?['preferredQualifications'] != null) ...[
+          if (_jobDetail?['preferredQualifications'] != null && _jobDetail!['preferredQualifications'].toString().isNotEmpty) ...[
             _buildDetailSection('⭐ 우대사항', [
               Container(
                 width: double.infinity,
@@ -750,5 +803,26 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         });
       }
     }
+  }
+
+  // 근무 기간 텍스트 생성
+  String _getWorkPeriodText() {
+    final startDate = _jobDetail?['workStartDate'];
+    final endDate = _jobDetail?['workEndDate'];
+    final durationMonths = _jobDetail?['workDurationMonths'];
+    
+    if (startDate != null && endDate != null) {
+      final start = DateTime.parse(startDate);
+      final end = DateTime.parse(endDate);
+      final months = durationMonths ?? _calculateMonths(start, end);
+      return '${start.year}.${start.month.toString().padLeft(2, '0')}.${start.day.toString().padLeft(2, '0')} ~ ${end.year}.${end.month.toString().padLeft(2, '0')}.${end.day.toString().padLeft(2, '0')} (${months}개월)';
+    }
+    
+    return widget.job.workSchedule.workPeriodText;
+  }
+
+  // 개월수 계산 헬퍼 메서드
+  int _calculateMonths(DateTime start, DateTime end) {
+    return ((end.year - start.year) * 12 + end.month - start.month).abs();
   }
 }

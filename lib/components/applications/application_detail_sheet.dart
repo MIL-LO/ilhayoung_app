@@ -383,13 +383,9 @@ class _ApplicationDetailSheetState extends State<ApplicationDetailSheet> {
   Future<void> _handleAction() async {
     switch (widget.application.status) {
       case ApplicationStatus.interview:
-        _showSnackBar('면접 일정 확인 기능은 준비 중입니다', Colors.purple[600]!);
+        _showSnackBar('면접 일정 확인 기능은 준비 중입니다', Colors.orange[600]!);
         break;
-      case ApplicationStatus.offer:
-        _showSnackBar('제안 확인 기능은 준비 중입니다', Colors.green[600]!);
-        break;
-      case ApplicationStatus.pending:
-      case ApplicationStatus.reviewing:
+      case ApplicationStatus.applied:
         _showCancelDialog();
         break;
       default:

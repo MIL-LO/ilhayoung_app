@@ -260,40 +260,43 @@ class ScheduleCard extends StatelessWidget {
   }
 
   Widget _buildScheduleInfo() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildScheduleInfoItem('시간', schedule.timeRangeText, Icons.access_time),
-        const SizedBox(width: 16),
-        _buildScheduleInfoItem('시급', '₩${schedule.hourlyRate.toInt()}', Icons.attach_money),
-        const SizedBox(width: 16),
-        _buildScheduleInfoItem('예상급여', '₩${schedule.estimatedPay.toInt()}', Icons.payment),
+        Row(
+          children: [
+            Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 6),
+            Text(
+              '${schedule.startTime} - ${schedule.endTime}',
+              style: TextStyle(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '(${schedule.workHours.toStringAsFixed(1)}시간)',
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Icon(Icons.attach_money, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 6),
+            Text('시급: ', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+            Text(
+              schedule.hourlyRate != null ? '${schedule.hourlyRate!.toStringAsFixed(0)}원' : '-',
+              style: TextStyle(fontSize: 13, color: Colors.grey[900], fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 16),
+            Text('일급: ', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+            Text(
+              schedule.dailyWage != null ? '${schedule.dailyWage!.toStringAsFixed(0)}원' : '-',
+              style: TextStyle(fontSize: 13, color: Colors.grey[900], fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ],
-    );
-  }
-
-  Widget _buildScheduleInfoItem(String label, String value, IconData icon) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 16, color: Colors.grey[600]),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF2D3748),
-            ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -328,25 +331,13 @@ class ScheduleCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        if (schedule.status == 'SCHEDULED') ...[
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => onStatusUpdate('IN_PROGRESS'),
-              icon: const Icon(Icons.play_arrow, size: 16),
-              label: const Text('시작'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-              ),
-            ),
-          ),
-        ] else if (schedule.status == 'IN_PROGRESS') ...[
+        // 퇴근/평가 버튼만 남김 (시작 버튼 완전 제거)
+        if (schedule.status == 'PRESENT' || schedule.status == 'LATE') ...[
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () => onStatusUpdate('COMPLETED'),
-              icon: const Icon(Icons.stop, size: 16),
-              label: const Text('완료'),
+              icon: const Icon(Icons.logout, size: 16),
+              label: const Text('퇴근처리'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF757575),
                 foregroundColor: Colors.white,
@@ -355,6 +346,7 @@ class ScheduleCard extends StatelessWidget {
             ),
           ),
         ],
+        // 평가 버튼 등 추가 필요시 여기에...
       ],
     );
   }

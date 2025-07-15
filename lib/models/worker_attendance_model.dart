@@ -32,7 +32,7 @@ class WorkerAttendance {
     return WorkerAttendance(
       staffId: json['staffId']?.toString() ?? '',
       staffName: json['staffName']?.toString() ?? json['name']?.toString() ?? '',
-      status: json['status']?.toString() ?? 'UNKNOWN',
+      status: json['status']?.toString() ?? json['todayStatus']?.toString() ?? 'UNKNOWN',
       checkInTime: json['checkInTime'] != null
           ? DateTime.tryParse(json['checkInTime'].toString())
           : null,
@@ -78,9 +78,9 @@ class WorkerAttendance {
       case 'EARLY_LEAVE':
         return '조퇴';
       case 'SCHEDULED':
-        return '근무 예정';
+        return '예정';
       case 'COMPLETED':
-        return '근무 완료';
+        return '완료';
       case 'ON_BREAK':
         return '휴식 중';
       default:
@@ -192,6 +192,8 @@ class WorkSchedule {
   final String? notes;
   final String? jobId;
   final String? jobTitle;
+  final String? position; // 직책/포지션
+  final double? hourlyWage; // 시급 (API 문서의 hourlyWage 필드)
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -207,23 +209,57 @@ class WorkSchedule {
     this.notes,
     this.jobId,
     this.jobTitle,
+    this.position,
+    this.hourlyWage,
     this.createdAt,
     this.updatedAt,
   });
 
   factory WorkSchedule.fromJson(Map<String, dynamic> json) {
+    // 날짜와 시간을 조합하여 DateTime 생성
+    DateTime parseDateTime(String? dateStr, String? timeStr) {
+      try {
+        // 날짜 파싱
+        final date = dateStr != null ? DateTime.parse(dateStr) : DateTime.now();
+        
+        // 시간 파싱 (HH:MM:SS 또는 HH:MM 형식)
+        if (timeStr != null && timeStr.contains(':')) {
+          final timeParts = timeStr.split(':');
+          if (timeParts.length >= 2) {
+            final hour = int.parse(timeParts[0]);
+            final minute = int.parse(timeParts[1]);
+            return DateTime(date.year, date.month, date.day, hour, minute);
+          }
+        }
+        
+        // 기본값: 오늘 날짜에 09:00
+        return DateTime(date.year, date.month, date.day, 9, 0);
+      } catch (e) {
+        print('❌ DateTime 파싱 오류: date=$dateStr, time=$timeStr, error=$e');
+        return DateTime.now();
+      }
+    }
+
     return WorkSchedule(
       scheduleId: json['scheduleId']?.toString() ?? json['id']?.toString() ?? '',
       staffId: json['staffId']?.toString() ?? '',
       staffName: json['staffName']?.toString() ?? json['name']?.toString() ?? '',
-      startTime: DateTime.parse(json['startTime']?.toString() ?? json['startDate']?.toString() ?? DateTime.now().toIso8601String()),
-      endTime: DateTime.parse(json['endTime']?.toString() ?? json['endDate']?.toString() ?? DateTime.now().add(const Duration(hours: 8)).toIso8601String()),
+      startTime: parseDateTime(
+        json['workDate']?.toString() ?? json['startDate']?.toString(),
+        json['startTime']?.toString(),
+      ),
+      endTime: parseDateTime(
+        json['workDate']?.toString() ?? json['endDate']?.toString(),
+        json['endTime']?.toString(),
+      ),
       workLocation: json['workLocation']?.toString() ?? json['location']?.toString() ?? '',
       hourlyRate: json['hourlyRate']?.toDouble() ?? json['wage']?.toDouble() ?? 0.0,
       status: json['status']?.toString() ?? 'SCHEDULED',
       notes: json['notes']?.toString(),
       jobId: json['jobId']?.toString(),
       jobTitle: json['jobTitle']?.toString(),
+      position: json['position']?.toString(),
+      hourlyWage: json['hourlyWage']?.toDouble(),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
@@ -246,6 +282,8 @@ class WorkSchedule {
       'notes': notes,
       'jobId': jobId,
       'jobTitle': jobTitle,
+      'position': position,
+      'hourlyWage': hourlyWage,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
@@ -374,6 +412,8 @@ class WorkSchedule {
     String? notes,
     String? jobId,
     String? jobTitle,
+    String? position,
+    double? hourlyWage,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -389,6 +429,8 @@ class WorkSchedule {
       notes: notes ?? this.notes,
       jobId: jobId ?? this.jobId,
       jobTitle: jobTitle ?? this.jobTitle,
+      position: position ?? this.position,
+      hourlyWage: hourlyWage ?? this.hourlyWage,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

@@ -1,8 +1,10 @@
 // lib/core/constants/app_constants.dart
 
+import '../../config/app_config.dart';
+
 class AppConstants {
-  // API 기본 URL
-  static const String baseUrl = 'https://api.ilhayoung.com';
+  // API 기본 URL (AppConfig에서 가져옴)
+  static String get baseUrl => AppConfig.baseUrl;
 
   // API 엔드포인트들
   static const String apiVersion = 'v1';

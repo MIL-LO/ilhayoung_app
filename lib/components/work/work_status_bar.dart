@@ -6,10 +6,12 @@ import '../../services/auth_service.dart';
 
 class WorkStatusBar extends StatefulWidget {
   final VoidCallback? onWorkToggle;
+  final VoidCallback? onNavigateToJobs; // 공고 리스트로 이동하는 콜백 추가
 
   const WorkStatusBar({
     Key? key,
     this.onWorkToggle,
+    this.onNavigateToJobs, // 콜백 추가
   }) : super(key: key);
 
   @override
@@ -147,6 +149,15 @@ class _WorkStatusBarState extends State<WorkStatusBar>
         if (scheduleData != null) {
           setState(() {
             _workStatus = scheduleData!['status'];
+
+            // 상태에 따라 근무 중 여부 결정
+            if (scheduleData['status'] == 'PRESENT' || scheduleData['status'] == 'LATE') {
+              _isWorking = true;
+              print('✅ 출근 상태: ${scheduleData['status']} - 근무 중으로 설정');
+            } else {
+              _isWorking = false;
+              print('✅ 출근 상태: ${scheduleData['status']} - 근무 중 아님');
+            }
 
             // 체크인 시간이 있으면 근무 중으로 설정
             if (scheduleData['checkInTime'] != null) {
@@ -441,9 +452,9 @@ class _WorkStatusBarState extends State<WorkStatusBar>
       // 상태별 타이틀 구분
       switch (_workStatus) {
         case null:
-          return '🔐 로그인 필요';
+          return '로그인 필요';
         case 'NO_SCHEDULE':
-          return '📅 스케줄 없음';
+          return '오늘은 휴무일';
         case 'ERROR':
           return '⚠️ 연결 오류';
         default:
@@ -463,7 +474,7 @@ class _WorkStatusBarState extends State<WorkStatusBar>
         case null:
           return '로그인 후 출근 체크를 해주세요';
         case 'NO_SCHEDULE':
-          return '오늘 예정된 근무가 없습니다';
+          return '오늘은 예정된 근무가 없어요.';
         case 'ERROR':
           return '서버 연결에 문제가 있습니다';
         default:
@@ -483,7 +494,7 @@ class _WorkStatusBarState extends State<WorkStatusBar>
         case null:
           return Icons.login;
         case 'NO_SCHEDULE':
-          return Icons.event_busy;
+          return Icons.weekend;
         case 'ERROR':
           return Icons.error_outline;
         default:
@@ -503,7 +514,7 @@ class _WorkStatusBarState extends State<WorkStatusBar>
         case null:
           return '🔐 로그인 필요';
         case 'NO_SCHEDULE':
-          return '📅 스케줄 없음';
+          return '📋 일자리 찾기';
         case 'ERROR':
           return '🔄 다시 시도';
         default:
@@ -688,37 +699,19 @@ class _WorkStatusBarState extends State<WorkStatusBar>
 
   void _showNoScheduleMessage() {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.info, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('오늘 예정된 근무 스케줄이 없습니다.'),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF2196F3),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(
-            bottom: 80,
-            left: 16,
-            right: 16,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          action: SnackBarAction(
-            label: '일자리 찾기',
-            textColor: Colors.white,
-            onPressed: () {
-              // 일자리 목록 페이지로 이동
-              // Navigator.pushNamed(context, '/jobs');
-            },
-          ),
-        ),
-      );
+      // 스낵바 대신 바로 공고 리스트로 이동
+      print('📅 스케줄 없음 - 바로 공고 리스트로 이동');
+      print('🔍 onNavigateToJobs 콜백 존재 여부: ${widget.onNavigateToJobs != null}');
+      
+      // 콜백이 제공된 경우 이를 사용하여 탭 변경
+      if (widget.onNavigateToJobs != null) {
+        print('✅ 콜백 호출 중...');
+        widget.onNavigateToJobs!();
+        print('✅ 콜백 호출 완료');
+      } else {
+        // 콜백이 없는 경우 기본 동작 (로그만 출력)
+        print('❌ onNavigateToJobs 콜백이 제공되지 않음');
+      }
     }
   }
 

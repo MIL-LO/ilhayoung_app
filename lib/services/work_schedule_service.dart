@@ -1,9 +1,9 @@
-// lib/services/work_schedule_service.dart - API 연동 버전
+// lib/services/work_schedule_service.dart - 근무 스케줄 관련 API 서비스
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'auth_service.dart';
 import '../config/app_config.dart';
-import '../services/auth_service.dart';
 
 class WorkScheduleService {
 
@@ -25,8 +25,8 @@ class WorkScheduleService {
         };
       }
 
-      // API 호출 (/api/schedules - v1만 제거)
-      final url = Uri.parse('https://api.ilhayoung.com/api/schedules').replace(
+          // API 호출 (/api/v1/schedules)
+            final url = Uri.parse('${AppConfig.apiBaseUrl}/schedules').replace(
         queryParameters: {
           'year': year.toString(),
           'month': month.toString(),
@@ -92,13 +92,12 @@ class WorkScheduleService {
 
   /// 체크인/체크아웃 API (실제 사용하는 엔드포인트)
   static Future<Map<String, dynamic>> checkInOut({
-    required int scheduleId,
+    required String scheduleId,
     required String checkType, // 'CHECK_IN' 또는 'CHECK_OUT'
   }) async {
     try {
-      print('=== 📍 체크인/아웃 API 호출 ===');
-      print('스케줄 ID: $scheduleId');
-      print('체크 타입: $checkType');
+      print('=== 🔄 체크인/아웃 API 호출 ===');
+      print('스케줄 ID: $scheduleId, 타입: $checkType');
 
       final token = await AuthService.getAccessToken();
       if (token == null) {
@@ -114,7 +113,7 @@ class WorkScheduleService {
       };
 
       final response = await http.post(
-        Uri.parse('https://api.ilhayoung.com/api/attendances/check-in-out'),
+        Uri.parse('${AppConfig.apiBaseUrl}/attendances/check-in-out'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -147,18 +146,102 @@ class WorkScheduleService {
     }
   }
 
-  /// 체크인 API (새로운 엔드포인트 사용)
-  static Future<Map<String, dynamic>> checkInNew(int scheduleId) async {
-    return await checkInOut(scheduleId: scheduleId, checkType: 'CHECK_IN');
+  /// 체크인 API (오늘의 스케줄 조회 후 체크인)
+  static Future<Map<String, dynamic>> checkInNew(String scheduleId) async {
+    try {
+      print('=== 🔍 체크인 전 오늘의 스케줄 확인 ===');
+      
+      // 먼저 오늘의 스케줄 조회
+      final todayResult = await getTodaySchedules();
+      
+      if (!todayResult['success']) {
+        return {
+          'success': false,
+          'error': '오늘의 스케줄을 조회할 수 없습니다: ${todayResult['error']}',
+        };
+      }
+
+      final todaySchedule = todayResult['data'];
+      print('오늘의 스케줄: $todaySchedule');
+
+      // 오늘의 스케줄이 있는지 확인
+      if (todaySchedule == null) {
+        return {
+          'success': false,
+          'error': '오늘은 근무일이 아닙니다.',
+        };
+      }
+
+      // 체크인 가능한지 확인
+      if (todaySchedule['canCheckIn'] == false) {
+        return {
+          'success': false,
+          'error': '현재 체크인할 수 없습니다: ${todaySchedule['statusMessage'] ?? '알 수 없는 이유'}',
+        };
+      }
+
+      // 오늘의 스케줄 ID 사용
+      final actualScheduleId = todaySchedule['id'];
+      print('실제 사용할 스케줄 ID: $actualScheduleId');
+
+      return await checkInOut(scheduleId: actualScheduleId.toString(), checkType: 'CHECK_IN');
+    } catch (e) {
+      return {
+        'success': false,
+        'error': '체크인 준비 중 오류가 발생했습니다: $e',
+      };
+    }
   }
 
-  /// 체크아웃 API (새로운 엔드포인트 사용)
-  static Future<Map<String, dynamic>> checkOutNew(int scheduleId) async {
-    return await checkInOut(scheduleId: scheduleId, checkType: 'CHECK_OUT');
+  /// 체크아웃 API (오늘의 스케줄 조회 후 체크아웃)
+  static Future<Map<String, dynamic>> checkOutNew(String scheduleId) async {
+    try {
+      print('=== 🔍 체크아웃 전 오늘의 스케줄 확인 ===');
+      
+      // 먼저 오늘의 스케줄 조회
+      final todayResult = await getTodaySchedules();
+      
+      if (!todayResult['success']) {
+        return {
+          'success': false,
+          'error': '오늘의 스케줄을 조회할 수 없습니다: ${todayResult['error']}',
+        };
+      }
+
+      final todaySchedule = todayResult['data'];
+      print('오늘의 스케줄: $todaySchedule');
+
+      // 오늘의 스케줄이 있는지 확인
+      if (todaySchedule == null) {
+        return {
+          'success': false,
+          'error': '오늘은 근무일이 아닙니다.',
+        };
+      }
+
+      // 체크아웃 가능한지 확인
+      if (todaySchedule['canCheckOut'] == false) {
+        return {
+          'success': false,
+          'error': '현재 체크아웃할 수 없습니다: ${todaySchedule['statusMessage'] ?? '알 수 없는 이유'}',
+        };
+      }
+
+      // 오늘의 스케줄 ID 사용
+      final actualScheduleId = todaySchedule['id'];
+      print('실제 사용할 스케줄 ID: $actualScheduleId');
+
+      return await checkInOut(scheduleId: actualScheduleId.toString(), checkType: 'CHECK_OUT');
+    } catch (e) {
+      return {
+        'success': false,
+        'error': '체크아웃 준비 중 오류가 발생했습니다: $e',
+      };
+    }
   }
 
   /// 스케줄 상세 조회 API
-  static Future<Map<String, dynamic>> getScheduleDetail(int scheduleId) async {
+  static Future<Map<String, dynamic>> getScheduleDetail(String scheduleId) async {
     try {
       print('=== 📋 스케줄 상세 조회 API 호출 ===');
       print('스케줄 ID: $scheduleId');
@@ -179,14 +262,25 @@ class WorkScheduleService {
         },
       );
 
-      print('스케줄 상세 응답: ${response.statusCode} - ${response.body}');
+      print('응답 상태: ${response.statusCode}');
+      print('응답 본문: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final Map<String, dynamic> data = json.decode(response.body);
         return {
           'success': true,
           'data': data['data'],
-          'message': '스케줄 상세 조회 성공',
+          'message': data['message'] ?? '스케줄 상세 조회 성공',
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': '인증이 만료되었습니다. 다시 로그인해주세요.',
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'error': '해당 스케줄을 찾을 수 없습니다.',
         };
       } else {
         final errorData = json.decode(response.body);
@@ -196,21 +290,71 @@ class WorkScheduleService {
         };
       }
     } catch (e) {
-      print('❌ 스케줄 상세 조회 오류: $e');
+      print('❌ 스케줄 상세 조회 API 호출 오류: $e');
       return {
         'success': false,
-        'error': '스케줄 상세 조회 중 오류가 발생했습니다: $e',
+        'error': '네트워크 오류가 발생했습니다: $e',
       };
     }
   }
 
   /// 오늘의 스케줄 조회 API
   static Future<Map<String, dynamic>> getTodaySchedules() async {
-    final now = DateTime.now();
-    return await getSchedulesByMonth(
-      year: now.year,
-      month: now.month,
-    );
+    try {
+      print('=== 📅 오늘의 스케줄 조회 API 호출 ===');
+
+      final token = await AuthService.getAccessToken();
+      if (token == null) {
+        return {
+          'success': false,
+          'error': '인증 토큰이 없습니다.',
+        };
+      }
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.apiBaseUrl}/schedules/today'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('응답 상태: ${response.statusCode}');
+      print('응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        return {
+          'success': true,
+          'data': data['data'],
+          'message': data['message'] ?? '오늘의 스케줄 조회 성공',
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': '인증이 만료되었습니다. 다시 로그인해주세요.',
+        };
+      } else if (response.statusCode == 404) {
+        // 404는 오늘 스케줄이 없다는 의미
+        return {
+          'success': true,
+          'data': null,
+          'message': '오늘은 근무일이 아닙니다.',
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['message'] ?? '오늘의 스케줄 조회에 실패했습니다.',
+        };
+      }
+    } catch (e) {
+      print('❌ 오늘의 스케줄 조회 API 호출 오류: $e');
+      return {
+        'success': false,
+        'error': '네트워크 오류가 발생했습니다: $e',
+      };
+    }
   }
 
   /// 다가오는 스케줄 조회 API

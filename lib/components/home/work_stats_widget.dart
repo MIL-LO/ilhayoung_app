@@ -40,7 +40,7 @@ class WorkStatsWidget extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '📊 이번 주 근무 현황',
+                '이번 주 근무 현황',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,

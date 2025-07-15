@@ -30,7 +30,7 @@ class OAuthService {
       print('=== OAuth 전체 화면 시작 ===');
 
       // 사용자 타입을 백엔드가 기대하는 형식으로 변환
-      final role = userType == UserType.worker ? 'STAFF' : 'OWNER';
+      final role = userType.serverValue;
       final oauthUrl = AppConfig.getOAuthUrl(provider, role);
 
       print('OAuth URL: $oauthUrl');
@@ -140,8 +140,8 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     try {
       final uri = Uri.parse(url);
 
-      // 🔥 백엔드 호스트를 api.ilhayoung.com으로 변경
-      final isBackendHost = uri.host == 'api.ilhayoung.com';
+      // 🔥 백엔드 호스트를 localhost:5000으로 변경 (개발 환경)
+      final isBackendHost = uri.host == 'localhost' && uri.port == 5000;
       final isCallbackPath = uri.path.contains('/login/oauth2/code/') ||
           uri.path.contains('/oauth/callback') ||
           uri.path.contains('/login/success');
@@ -203,7 +203,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
         final result = await _controller.runJavaScriptReturningResult(
             'document.body.innerText || document.body.textContent || ""'
         );
-        pageText = result?.toString() ?? '';
+        pageText = result.toString();
         print('페이지 텍스트 추출 성공: ${pageText.length > 200 ? pageText.substring(0, 200) : pageText}...');
       } catch (jsError) {
         print('JavaScript 실행 실패: $jsError');
@@ -218,10 +218,17 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
         print(pageText);
         print('=== 페이지 텍스트 끝 ===');
 
-        // 패턴 1: JSON 형태의 응답 찾기
+        // 패턴 1: JSON 형태의 응답 찾기 (더 정확한 패턴으로 개선)
         final jsonPatterns = [
-          RegExp(r'\{[^}]*"success"[^}]*"accessToken"[^}]*\}'),
-          RegExp(r'\{[^}]*success[^}]*accessToken[^}]*\}'),
+          // 완전한 JSON 객체 패턴 (백엔드 응답 형식에 맞춤)
+          RegExp(r'\{[^{}]*"success"[^{}]*"message"[^{}]*"accessToken"[^{}]*"refreshToken"[^{}]*\}'),
+          RegExp(r'\{[^{}]*"success"[^{}]*"accessToken"[^{}]*"refreshToken"[^{}]*\}'),
+          RegExp(r'\{[^{}]*"success"[^{}]*"message"[^{}]*"accessToken"[^{}]*\}'),
+          RegExp(r'\{[^{}]*"success"[^{}]*"accessToken"[^{}]*\}'),
+          // 더 넓은 범위의 JSON 패턴
+          RegExp(r'\{[\s\S]*?"success"[\s\S]*?"accessToken"[\s\S]*?\}'),
+          RegExp(r'\{[\s\S]*?success[\s\S]*?accessToken[\s\S]*?\}'),
+          // 가장 넓은 범위
           RegExp(r'\{[\s\S]*success[\s\S]*accessToken[\s\S]*\}'),
         ];
 
@@ -232,6 +239,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
             print('JSON 패턴 발견: $jsonStr');
 
             try {
+              // JSON 문자열 정규화 (백엔드 응답 형식에 맞춤)
               if (!jsonStr.contains('"success"')) {
                 jsonStr = jsonStr
                     .replaceAll(RegExp(r'(\w+):'), r'"\1":')
@@ -242,14 +250,55 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
               }
 
               final responseData = json.decode(jsonStr);
-              final oauthResponse = OAuthResponse.fromJson(responseData);
-              print('JSON 파싱 성공!');
+              print('JSON 디코딩 성공: $responseData');
+              
+              // 백엔드 응답 형식에 맞춰 OAuthResponse 생성
+              final oauthResponse = OAuthResponse(
+                success: responseData['success'] ?? false,
+                message: responseData['message'] ?? '',
+                accessToken: responseData['accessToken'],
+                refreshToken: responseData['refreshToken'],
+              );
+              
+              print('OAuthResponse 생성 성공!');
               _handleOAuthResponse(oauthResponse);
               return;
             } catch (e) {
               print('JSON 파싱 실패: $e');
+              // 다음 패턴 시도
+              continue;
             }
           }
+        }
+
+        // 패턴 2: 전체 페이지에서 JSON 추출 시도
+        print('정규식 패턴으로 찾지 못함 - 전체 페이지에서 JSON 추출 시도');
+        try {
+          // 페이지에서 JSON 부분만 추출
+          final jsonStart = pageText.indexOf('{');
+          final jsonEnd = pageText.lastIndexOf('}');
+          
+          if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+            final jsonStr = pageText.substring(jsonStart, jsonEnd + 1);
+            print('추출된 JSON 문자열: $jsonStr');
+            
+            final responseData = json.decode(jsonStr);
+            print('전체 페이지 JSON 디코딩 성공: $responseData');
+            
+            // 백엔드 응답 형식에 맞춰 OAuthResponse 생성
+            final oauthResponse = OAuthResponse(
+              success: responseData['success'] ?? false,
+              message: responseData['message'] ?? '',
+              accessToken: responseData['accessToken'],
+              refreshToken: responseData['refreshToken'],
+            );
+            
+            print('전체 페이지에서 OAuthResponse 생성 성공!');
+            _handleOAuthResponse(oauthResponse);
+            return;
+          }
+        } catch (e) {
+          print('전체 페이지 JSON 파싱 실패: $e');
         }
 
         // 🔥 토큰 패턴 추출 제거 - JSON 우선 처리
@@ -268,37 +317,7 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     }
   }
 
-  /// 🔥 토큰 응답 처리 (창 없이 즉시 처리)
-  void _handleTokenResponse(String token) async {
-    if (!mounted) return;
 
-    print('=== OAuth 토큰 응답 처리 (창 없이) ===');
-    print('받은 토큰: ${token.substring(0, 30)}...');
-
-    try {
-      // 🔥 토큰 처리를 백그라운드에서 수행 (창 표시 안 함)
-      await _processOAuthToken(token);
-
-      // 🔥 바로 성공 응답으로 처리 (토큰 창 건너뛰기)
-      final response = OAuthResponse(
-        success: true,
-        message: '카카오 로그인 성공',
-        accessToken: token,
-      );
-
-      print('=== 토큰 처리 완료 - 바로 화면 종료 ===');
-      Navigator.of(context).pop(response);
-    } catch (e) {
-      print('❌ OAuth 토큰 처리 실패: $e');
-      // 토큰 처리 실패해도 성공으로 처리 (AuthWrapper에서 재처리)
-      final response = OAuthResponse(
-        success: true,
-        message: '카카오 로그인 성공',
-        accessToken: null,
-      );
-      Navigator.of(context).pop(response);
-    }
-  }
 
   /// 🔥 OAuth 토큰 처리 (즉시 실행, 지연 없음)
   Future<void> _processOAuthToken(String accessToken) async {
@@ -392,14 +411,57 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
   void _handleOAuthResponse(OAuthResponse response) async {
     if (!mounted) return;
 
+    print('=== OAuth 응답 처리 시작 ===');
+    print('Success: ${response.success}');
+    print('Message: ${response.message}');
+    print('Has AccessToken: ${response.accessToken != null}');
+    print('Has RefreshToken: ${response.refreshToken != null}');
+
+    // 🔥 실패 응답 처리 (역할 중복 등)
+    if (response.success == false) {
+      print('❌ OAuth 실패: ${response.message}');
+      
+      // 안내 다이얼로그 표시
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('로그인 불가'),
+          content: Text(response.message ?? '로그인에 실패했습니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+      
+      // 실패 응답을 반환하고 화면을 닫음
+      Navigator.of(context).pop(response);
+      return;
+    }
+
     // 🔥 응답에 토큰이 있으면 JWT 파싱 수행
     if (response.success && response.accessToken != null) {
       try {
         print('=== OAuthResponse에서 토큰 처리 시작 ===');
         await _processOAuthToken(response.accessToken!);
         print('✅ OAuthResponse 토큰 처리 완료');
+        
+        // 백엔드에서 보낸 메시지가 있으면 로그에 기록
+        if (response.message != null && response.message!.isNotEmpty) {
+          print('📝 백엔드 메시지: ${response.message}');
+        }
+        
       } catch (e) {
         print('❌ OAuthResponse 토큰 처리 실패: $e');
+      }
+    } else if (response.success) {
+      // 토큰이 없지만 성공인 경우 (PENDING 상태)
+      print('✅ OAuth 성공 (토큰 없음) - 회원가입 필요');
+      if (response.message != null && response.message!.isNotEmpty) {
+        print('📝 백엔드 메시지: ${response.message}');
       }
     }
 

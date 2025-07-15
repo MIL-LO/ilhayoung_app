@@ -64,7 +64,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isEmployer = widget.userType == UserType.employer;
+    final bool isEmployer = widget.userType == UserType.manager;
     final Color primaryColor = isEmployer
         ? const Color(0xFF2D3748)
         : const Color(0xFF00A3A3);

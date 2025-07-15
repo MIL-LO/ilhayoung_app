@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
 
-// 화면 imports
-import '../jobs/jeju_job_list_screen.dart';
-import '../main/jeju_staff_main_screen.dart';
-import '../../home/jeju_home_screen.dart';
-import '../../applications/applications_screen.dart';
-import '../../profile/mypage_screen.dart';
-
 // 컴포넌트 imports
 import '../../../components/navigation/jeju_worker_navbar.dart';
 import '../../../core/enums/user_type.dart';
+import '../../applications/applications_screen.dart';
+import '../../home/jeju_home_screen.dart';
+import '../../profile/mypage_screen.dart';
+// 화면 imports
+import '../jobs/jeju_job_list_screen.dart';
+import '../main/jeju_staff_main_screen.dart';
 
 class WorkerMainScreen extends StatefulWidget {
   final Function? onLogout;
 
-  const WorkerMainScreen({Key? key, this.onLogout}) : super(key: key);
+  const WorkerMainScreen({super.key, this.onLogout});
 
   @override
   State<WorkerMainScreen> createState() => _WorkerMainScreenState();
@@ -22,6 +21,15 @@ class WorkerMainScreen extends StatefulWidget {
 
 class _WorkerMainScreenState extends State<WorkerMainScreen> {
   WorkerNavTab _selectedTab = WorkerNavTab.home; // 홈을 기본값으로
+
+  // 탭 변경을 위한 콜백 메서드 추가
+  void _changeTab(WorkerNavTab tab) {
+    print('🔄 탭 변경 요청: $tab');
+    setState(() {
+      _selectedTab = tab;
+    });
+    print('✅ 탭 변경 완료: $_selectedTab');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +54,10 @@ class _WorkerMainScreenState extends State<WorkerMainScreen> {
         return ApplicationsScreen(onLogout: widget.onLogout);
 
       case WorkerNavTab.home:
-        return JejuHomeScreen(onLogout: widget.onLogout);
+        return JejuHomeScreen(
+          onLogout: widget.onLogout,
+          onNavigateToJobs: () => _changeTab(WorkerNavTab.jobs), // 콜백 전달
+        );
 
       case WorkerNavTab.work:
         return JejuStaffMainScreen(onLogout: widget.onLogout);

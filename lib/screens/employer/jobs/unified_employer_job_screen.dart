@@ -10,6 +10,7 @@ import '../../../models/job_posting_model.dart';
 import 'job_management_screen.dart';
 import 'job_edit_screen.dart';
 import '../applicants/applicant_management_screen.dart';
+import 'job_create_screen.dart';
 
 class UnifiedEmployerJobScreen extends StatefulWidget {
   final int initialTab;
@@ -122,8 +123,8 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FFFE),
       appBar: UnifiedAppHeader(
-        title: '공고 관리',
-        subtitle: '사업자님의 채용을 도와드립니다',
+        title: widget.initialTab == 1 ? '내 공고 관리' : '공고 관리',
+        subtitle: widget.initialTab == 1 ? '등록된 공고를 확인하고 관리하세요' : '사업자님의 채용을 도와드립니다',
         emoji: '🏢',
         actions: [
           IconButton(
@@ -164,7 +165,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
   Widget _buildTabBar() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 50,
+      height: 70,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
@@ -528,7 +529,7 @@ class _UnifiedEmployerJobScreenState extends State<UnifiedEmployerJobScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const JobManagementScreen(),
+        builder: (context) => const JobCreateScreen(),
       ),
     ).then((_) {
       _refreshJobLists();

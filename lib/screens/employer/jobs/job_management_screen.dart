@@ -5,6 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../components/common/unified_app_header.dart';
 import '../../../providers/employer_job_provider.dart';
+import '../../../providers/categories_provider.dart';
+import '../../../services/manager_info_service.dart'; // 추가
+import 'job_edit_screen.dart'; // JobEditScreen import 추가
+import '../../../models/job_posting_model.dart'; // 공통 JobPosting 모델 import 추가
+import '../applicants/applicant_management_screen.dart'; // 지원자 관리 화면 import 추가
 
 class JobManagementScreen extends ConsumerStatefulWidget {
   const JobManagementScreen({Key? key}) : super(key: key);
@@ -33,12 +38,15 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
   final _representativeNameController = TextEditingController();
   final _startTimeController = TextEditingController();
   final _endTimeController = TextEditingController();
+  final _recruitmentCountController = TextEditingController(); // 모집인원 추가
 
   // 폼 상태
   String _selectedJobType = '카페/음료';
   String _selectedGender = '무관';
   String _selectedWorkPeriod = 'ONE_TO_THREE';
   DateTime _selectedDeadline = DateTime.now().add(const Duration(days: 30));
+  DateTime _selectedWorkStartDate = DateTime.now().add(const Duration(days: 7)); // 근무 시작일
+  DateTime _selectedWorkEndDate = DateTime.now().add(const Duration(days: 90)); // 근무 종료일
   List<String> _selectedWorkDays = ['월', '화', '수', '목', '금'];
   bool _isSubmitting = false;
 
@@ -68,27 +76,89 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
 
   void _setupTabs() {
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      setState(() {}); // 탭 변경 시 UI 업데이트
+    });
   }
 
   void _loadInitialData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(jobProvider.notifier).loadMyJobs(refresh: true);
+      _loadManagerInfo(); // 매니저 정보 로드 추가
     });
   }
 
+  // 매니저 정보를 로드하여 업체 정보를 자동으로 채우는 메서드
+  Future<void> _loadManagerInfo() async {
+    try {
+      print('=== 매니저 정보 로드 시작 ===');
+      
+      // ManagerInfoService를 사용하여 매니저 정보 조회
+      final managerInfo = await ManagerInfoService.getManagerInfo();
+      
+      if (managerInfo != null && mounted) {
+        print('✅ 매니저 정보 로드 성공: $managerInfo');
+        
+        setState(() {
+          // 업체 정보를 자동으로 폼에 채우기
+          _companyNameController.text = managerInfo['companyName'] ?? '';
+          _companyAddressController.text = managerInfo['businessAddress'] ?? '';
+          _companyContactController.text = managerInfo['phone'] ?? '';
+          _representativeNameController.text = managerInfo['name'] ?? ''; // 매니저 이름을 대표자명으로 설정
+          
+          // 근무지도 업체 주소로 자동 설정
+          _workLocationController.text = managerInfo['businessAddress'] ?? '';
+        });
+        
+        print('✅ 업체 정보 자동 입력 완료');
+        print('- 업체명: ${managerInfo['companyName']}');
+        print('- 업체 주소: ${managerInfo['businessAddress']}');
+        print('- 연락처: ${managerInfo['phone']}');
+        print('- 대표자명: ${managerInfo['name']}');
+        print('- 근무 위치: ${managerInfo['businessAddress']}');
+        print('- 실제 대표자명 컨트롤러 값: ${_representativeNameController.text}');
+        print('- 실제 근무 위치 컨트롤러 값: ${_workLocationController.text}');
+      } else {
+        print('⚠️ 매니저 정보가 없거나 로드 실패');
+      }
+    } catch (e) {
+      print('❌ 매니저 정보 로드 중 오류: $e');
+    }
+  }
+
   void _fillTestData() {
-    _titleController.text = '제주 연동 카페 홀 스태프 모집';
-    _descriptionController.text = '친절하고 밝은 성격의 홀 스태프를 모집합니다. 카페 운영 경험이 있으시면 우대합니다.';
-    _salaryController.text = '10000';
-    _workLocationController.text = '제주시 연동';
-    _positionController.text = '홀 스태프';
-    _paymentDateController.text = '매월 25일';
-    _companyNameController.text = '제주 힐링 카페';
-    _companyAddressController.text = '제주시 연동 123-45';
-    _companyContactController.text = '064-123-4567';
-    _representativeNameController.text = '김제주';
-    _startTimeController.text = '09:00';
-    _endTimeController.text = '18:00';
+    // 테스트 데이터는 매니저 정보가 없을 때만 사용
+    if (_companyNameController.text.isEmpty) {
+      _titleController.text = '제주 연동 카페 홀 스태프 모집';
+      _descriptionController.text = '친절하고 밝은 성격의 홀 스태프를 모집합니다. 카페 운영 경험이 있으시면 우대합니다.';
+      _salaryController.text = '10000';
+      _workLocationController.text = '제주시 연동';
+      _positionController.text = '홀 스태프';
+      _paymentDateController.text = '매월 25일';
+      _companyNameController.text = '제주 힐링 카페';
+      _companyAddressController.text = '제주시 연동 123-45';
+      _companyContactController.text = '064-123-4567';
+      _representativeNameController.text = '김제주';
+      _startTimeController.text = '09:00';
+      _endTimeController.text = '18:00';
+      _recruitmentCountController.text = '2'; // 모집인원 테스트 데이터
+    }
+  }
+
+  Widget _buildFloatingActionButton() {
+    return FloatingActionButton.extended(
+      onPressed: () {
+        HapticFeedback.lightImpact();
+        _tabController.animateTo(1); // 새 공고 작성 탭으로 이동
+      },
+      backgroundColor: const Color(0xFF2D3748),
+      foregroundColor: Colors.white,
+      icon: const Icon(Icons.add),
+      label: const Text(
+        '공고 작성',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+    );
   }
 
   @override
@@ -107,6 +177,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
     _representativeNameController.dispose();
     _startTimeController.dispose();
     _endTimeController.dispose();
+    _recruitmentCountController.dispose(); // 모집인원 컨트롤러 추가
     super.dispose();
   }
 
@@ -140,6 +211,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           ],
         ),
       ),
+      floatingActionButton: _tabController.index == 0 ? _buildFloatingActionButton() : null,
     );
   }
 
@@ -371,7 +443,32 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           label: '근무 지역',
           hint: '제주시 연동',
           controller: _workLocationController,
+          enabled: false, // 수정 불가 - 업체 주소와 동일
           validator: (value) => value?.isEmpty == true ? '근무 지역을 입력해주세요' : null,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue[200]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue[600], size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '근무 위치는 업체 주소와 동일하게 설정됩니다',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.blue[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -386,6 +483,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           label: '업체명',
           hint: '제주 힐링 카페',
           controller: _companyNameController,
+          enabled: false, // 수정 불가
           validator: (value) => value?.isEmpty == true ? '업체명을 입력해주세요' : null,
         ),
         const SizedBox(height: 16),
@@ -393,6 +491,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           label: '업체 주소',
           hint: '제주시 연동 123-45',
           controller: _companyAddressController,
+          enabled: false, // 수정 불가
           validator: (value) => value?.isEmpty == true ? '업체 주소를 입력해주세요' : null,
         ),
         const SizedBox(height: 16),
@@ -400,6 +499,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           label: '업체 연락처',
           hint: '064-123-4567',
           controller: _companyContactController,
+          enabled: false, // 수정 불가
           keyboardType: TextInputType.phone,
           validator: (value) => value?.isEmpty == true ? '업체 연락처를 입력해주세요' : null,
         ),
@@ -408,9 +508,122 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           label: '대표자명',
           hint: '김제주',
           controller: _representativeNameController,
+          enabled: false, // 수정 불가
           validator: (value) => value?.isEmpty == true ? '대표자명을 입력해주세요' : null,
         ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: '모집인원',
+          hint: '2',
+          controller: _recruitmentCountController,
+          keyboardType: TextInputType.number,
+          validator: (value) {
+            if (value?.isEmpty == true) return '모집인원을 입력해주세요';
+            final count = int.tryParse(value!);
+            if (count == null || count <= 0) return '1명 이상의 모집인원을 입력해주세요';
+            if (count > 100) return '모집인원은 100명 이하여야 합니다';
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        _buildWorkDatePickers(),
       ],
+    );
+  }
+
+  Widget _buildWorkDatePickers() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '근무 기간',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF2D3748),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildDatePicker(
+                label: '근무 시작일',
+                value: _selectedWorkStartDate,
+                onChanged: (date) => setState(() => _selectedWorkStartDate = date),
+                validator: (date) {
+                  if (date.isBefore(DateTime.now())) {
+                    return '근무 시작일은 오늘 이후여야 합니다';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDatePicker(
+                label: '근무 종료일',
+                value: _selectedWorkEndDate,
+                onChanged: (date) => setState(() => _selectedWorkEndDate = date),
+                validator: (date) {
+                  if (date.isBefore(_selectedWorkStartDate)) {
+                    return '근무 종료일은 시작일 이후여야 합니다';
+                  }
+                  return null;
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDatePicker({
+    required String label,
+    required DateTime value,
+    required Function(DateTime) onChanged,
+    String? Function(DateTime)? validator,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        final date = await showDatePicker(
+          context: context,
+          initialDate: value,
+          firstDate: DateTime.now(),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (date != null) {
+          onChanged(date);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -454,7 +667,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
   }
 
   Widget _buildStatsCard(List<JobPosting> myJobs) {
-    final totalApplicants = myJobs.fold<int>(0, (sum, job) => sum + job.applicantCount);
+    final totalApplicants = myJobs.fold<int>(0, (sum, job) => sum + job.applicationCount);
     final totalViews = myJobs.fold<int>(0, (sum, job) => sum + job.viewCount);
     final activeCount = myJobs.where((job) => job.isActive).length;
 
@@ -691,7 +904,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           const SizedBox(height: 12),
           Row(
             children: [
-              _buildJobInfo(Icons.people, '${job.applicantCount}명 지원'),
+              _buildJobInfo(Icons.people, '${job.applicationCount}명 지원'),
               const SizedBox(width: 16),
               _buildJobInfo(Icons.visibility, '${job.viewCount}회 조회'),
               const SizedBox(width: 16),
@@ -847,6 +1060,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
     int maxLines = 1,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    bool enabled = true, // enabled 파라미터 추가
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -865,10 +1079,11 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
           maxLines: maxLines,
           keyboardType: keyboardType,
           validator: validator,
+          enabled: enabled, // enabled 적용
           decoration: InputDecoration(
             hintText: hint,
             filled: true,
-            fillColor: Colors.grey[50],
+            fillColor: enabled ? Colors.grey[50] : Colors.grey[100], // 비활성화 시 배경색 변경
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -884,6 +1099,10 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red),
+            ),
+            disabledBorder: OutlineInputBorder( // 비활성화 시 테두리 추가
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[400]!),
             ),
             contentPadding: const EdgeInsets.all(16),
           ),
@@ -1115,108 +1334,25 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
 
   void _editJob(JobPosting job) {
     HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${job.title} 수정 기능 준비 중입니다'),
-        backgroundColor: const Color(0xFF2D3748),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => JobEditScreen(jobPosting: job),
       ),
-    );
+    ).then((result) {
+      // 수정 완료 후 공고 목록 새로고침
+      if (result == true) {
+        ref.read(jobProvider.notifier).loadMyJobs(refresh: true);
+      }
+    });
   }
 
   void _viewApplicants(JobPosting job) {
     HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Color(0xFF2D3748),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.people, color: Colors.white, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          job.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          '총 ${job.applicantCount}명이 지원했습니다',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.engineering,
-                      size: 80,
-                      color: Colors.grey[300],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '지원자 관리 기능 준비 중입니다',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '곧 지원자 목록과 이력서를 확인할 수 있습니다',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ApplicantManagementScreen(jobPosting: job),
       ),
     );
   }
@@ -1237,6 +1373,9 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
 
     try {
       HapticFeedback.mediumImpact();
+
+      // 근무 기간을 개월수로 계산
+      final workDurationMonths = _calculateWorkDurationMonths(_selectedWorkStartDate, _selectedWorkEndDate);
 
       final success = await ref.read(jobProvider.notifier).createJob(
         title: _titleController.text,
@@ -1260,6 +1399,10 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
         startTime: _startTimeController.text,
         endTime: _endTimeController.text,
         workPeriod: _selectedWorkPeriod,
+        recruitmentCount: int.parse(_recruitmentCountController.text),
+        workStartDate: _selectedWorkStartDate.toIso8601String(),
+        workEndDate: _selectedWorkEndDate.toIso8601String(),
+        workDurationMonths: workDurationMonths,
       );
 
       if (success) {
@@ -1307,6 +1450,13 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
     );
   }
 
+  // 근무 기간을 개월수로 계산하는 메서드
+  int _calculateWorkDurationMonths(DateTime startDate, DateTime endDate) {
+    final difference = endDate.difference(startDate);
+    final months = (difference.inDays / 30.44).round(); // 평균 월 일수로 계산
+    return months > 0 ? months : 1; // 최소 1개월
+  }
+
   void _clearForm() {
     _formKey.currentState!.reset();
     _titleController.clear();
@@ -1321,6 +1471,7 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
     _representativeNameController.clear();
     _startTimeController.clear();
     _endTimeController.clear();
+    _recruitmentCountController.clear();
 
     setState(() {
       _selectedJobType = '카페/음료';
@@ -1328,6 +1479,8 @@ class _JobManagementScreenState extends ConsumerState<JobManagementScreen>
       _selectedWorkPeriod = 'ONE_TO_THREE';
       _selectedDeadline = DateTime.now().add(const Duration(days: 30));
       _selectedWorkDays = ['월', '화', '수', '목', '금'];
+      _selectedWorkStartDate = DateTime.now().add(const Duration(days: 7));
+      _selectedWorkEndDate = DateTime.now().add(const Duration(days: 90));
     });
   }
 }

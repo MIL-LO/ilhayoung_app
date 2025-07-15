@@ -1,87 +1,16 @@
-// lib/providers/employer_job_provider.dart
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 공고 데이터 모델
-class JobPosting {
-  final String id;
-  final String title;
-  final String company;
-  final String status;
-  final String position;
-  final String salary;
-  final String workTime;
-  final String location;
-  final int applicantCount;
-  final int viewCount;
-  final DateTime createdAt;
-  final DateTime deadline;
-  final bool isMyJob;
+import '../config/app_config.dart';
+import '../models/job_posting_model.dart' show JobPosting; // 공통 모델 명시적 import
 
-  JobPosting({
-    required this.id,
-    required this.title,
-    required this.company,
-    required this.status,
-    required this.position,
-    required this.salary,
-    required this.workTime,
-    required this.location,
-    required this.applicantCount,
-    required this.viewCount,
-    required this.createdAt,
-    required this.deadline,
-    this.isMyJob = false,
-  });
+// 공고 데이터 모델 - 공통 모델 사용
+// JobPosting 클래스는 models/job_posting_model.dart에서 import하여 사용
 
-  bool get isNew => DateTime.now().difference(createdAt).inDays <= 3;
-  bool get isUrgent => deadline.difference(DateTime.now()).inDays <= 7;
-  int get daysUntilDeadline => deadline.difference(DateTime.now()).inDays;
-  bool get isExpired => DateTime.now().isAfter(deadline);
-  bool get isActive => status == 'ACTIVE';
-
-  factory JobPosting.fromJson(Map<String, dynamic> json, {bool isMyJob = false}) {
-    return JobPosting(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] ?? '',
-      company: json['companyName'] ?? json['company'] ?? '',
-      status: json['status'] ?? 'ACTIVE',
-      position: json['position'] ?? json['jobType'] ?? '',
-      salary: json['salary']?.toString() ?? json['wage']?.toString() ?? '', // 이 부분 수정
-      workTime: _parseWorkTime(json), // 이 부분 수정
-      location: json['location'] ?? json['workLocation'] ?? '',
-      applicantCount: json['applicantCount'] ?? 0,
-      viewCount: json['viewCount'] ?? 0,
-      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-      deadline: DateTime.tryParse(json['deadline'] ?? '') ?? DateTime.now().add(const Duration(days: 30)),
-      isMyJob: isMyJob,
-    );
-  }
-}
-
-String _parseWorkTime(Map<String, dynamic> json) {
-// 기존 workTime이 있으면 사용
-if (json['workTime'] != null && json['workTime'] is String) {
-return json['workTime'];
-}
-
-// workSchedule에서 시간 정보 추출
-final workSchedule = json['workSchedule'];
-if (workSchedule != null && workSchedule is Map<String, dynamic>) {
-final startTime = workSchedule['startTime'] ?? '';
-final endTime = workSchedule['endTime'] ?? '';
-
-if (startTime.isNotEmpty && endTime.isNotEmpty) {
-return '$startTime - $endTime';
-}
-}
-
-// 기본값 반환
-return '';
-}
+// 공통 모델의 fromJson을 사용하므로 별도 파싱 함수 불필요
 
 
 // 공고 상태 클래스
@@ -144,7 +73,7 @@ class JobFilter {
 
 // API 서비스
 class JobApiService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   // 전체 공고 조회
   static Future<Map<String, dynamic>> getAllJobs({
@@ -199,7 +128,7 @@ class JobApiService {
           final data = jsonResponse['data'];
           final List<dynamic> content = data['content'] ?? [];
 
-          final jobs = content.map((item) => JobPosting.fromJson(item, isMyJob: false)).toList();
+          final jobs = content.map((item) => JobPosting.fromJson(item)).toList();
 
           return {
             'jobs': jobs,
@@ -259,7 +188,7 @@ class JobApiService {
           final data = jsonResponse['data'];
           final List<dynamic> content = data['content'] ?? [];
 
-          final jobs = content.map((item) => JobPosting.fromJson(item, isMyJob: true)).toList();
+          final jobs = content.map((item) => JobPosting.fromJson(item)).toList();
 
           return {
             'jobs': jobs,
@@ -365,6 +294,10 @@ class JobApiService {
     required String companyAddress,
     required String companyContact,
     required String representativeName,
+    required int recruitmentCount,
+    required String workStartDate,
+    required String workEndDate,
+    required int workDurationMonths,
   }) async {
     try {
       print('=== 새로운 공고 등록 API 호출 ===');
@@ -392,6 +325,10 @@ class JobApiService {
         'companyAddress': companyAddress,
         'companyContact': companyContact,
         'representativeName': representativeName,
+        'recruitmentCount': recruitmentCount,
+        'workStartDate': workStartDate,
+        'workEndDate': workEndDate,
+        'workDurationMonths': workDurationMonths,
       };
 
       print('새로운 공고 등록 데이터: $requestBody');
@@ -492,7 +429,7 @@ class JobNotifier extends StateNotifier<JobState> {
       );
 
       state = state.copyWith(
-        allJobs: result['jobs'],
+        allJobs: List<JobPosting>.from(result['jobs']),
         totalElements: result['totalElements'],
         isLoading: false,
         error: null,
@@ -515,7 +452,7 @@ class JobNotifier extends StateNotifier<JobState> {
       final result = await JobApiService.getMyJobs();
 
       state = state.copyWith(
-        myJobs: result['jobs'],
+        myJobs: List<JobPosting>.from(result['jobs']),
         isLoading: false,
         error: null,
       );
@@ -598,6 +535,10 @@ class JobNotifier extends StateNotifier<JobState> {
     String? startTime,
     String? endTime,
     String? workPeriod,
+    int? recruitmentCount, // 모집인원 추가
+    String? workStartDate, // 근무 시작일 추가
+    String? workEndDate, // 근무 종료일 추가
+    int? workDurationMonths, // 근무 기간 (개월수) 추가
   }) async {
     try {
       // 새로운 구조로 직접 API 호출
@@ -622,6 +563,10 @@ class JobNotifier extends StateNotifier<JobState> {
         companyAddress: companyAddress ?? location,
         companyContact: companyContact ?? contact,
         representativeName: representativeName ?? '대표자',
+        recruitmentCount: recruitmentCount ?? 1, // 모집인원 기본값 1
+        workStartDate: workStartDate ?? DateTime.now().add(const Duration(days: 7)).toIso8601String().substring(0, 10), // 근무 시작일
+        workEndDate: workEndDate ?? DateTime.now().add(const Duration(days: 90)).toIso8601String().substring(0, 10), // 근무 종료일
+        workDurationMonths: workDurationMonths ?? 3, // 근무 기간 기본값 3개월
       );
 
       if (result['success']) {
@@ -665,13 +610,13 @@ class JobNotifier extends StateNotifier<JobState> {
       final query = filter.searchQuery.toLowerCase();
       jobs = jobs.where((job) =>
       job.title.toLowerCase().contains(query) ||
-          job.company.toLowerCase().contains(query)
+          job.companyName.toLowerCase().contains(query)
       ).toList();
     }
 
     // 지역 필터
     if (filter.location != '제주 전체') {
-      jobs = jobs.where((job) => job.location.contains(filter.location)).toList();
+      jobs = jobs.where((job) => job.workLocation.contains(filter.location)).toList();
     }
 
     // 카테고리 필터
@@ -689,8 +634,4 @@ final selectedTabProvider = StateProvider<int>((ref) => 0);
 // 상수 Provider들
 final locationsProvider = Provider<List<String>>((ref) => [
   '제주 전체', '제주시', '서귀포시', '애월읍', '한림읍', '구좌읍', '성산읍', '표선면', '남원읍'
-]);
-
-final categoriesProvider = Provider<List<String>>((ref) => [
-  '전체', '카페/음료', '음식점', '숙박업', '관광/레저', '농업', '유통/판매', '서비스업'
 ]);

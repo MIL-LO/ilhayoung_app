@@ -2,17 +2,14 @@
 
 enum UserType {
   worker,
-  employer, manager;
+  manager;
 
   String get displayName {
     switch (this) {
       case UserType.worker:
         return '일하는 사람';
-      case UserType.employer:
-        return '사업자';
       case UserType.manager:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return '자영업자';
     }
   }
 
@@ -20,11 +17,8 @@ enum UserType {
     switch (this) {
       case UserType.worker:
         return 'STAFF';
-      case UserType.employer:
-        return 'OWNER';
       case UserType.manager:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return 'MANAGER';
     }
   }
 
@@ -33,9 +27,10 @@ enum UserType {
       case 'STAFF':
       case 'WORKER':
         return UserType.worker;
+      case 'MANAGER':
       case 'OWNER':
       case 'EMPLOYER':
-        return UserType.employer;
+        return UserType.manager;
       default:
         return null;
     }

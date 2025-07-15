@@ -7,11 +7,10 @@ import 'package:flutter/services.dart';
 
 // 컴포넌트 imports
 import '../../components/common/unified_app_header.dart';
-import '../../components/home/featured_jobs_widget.dart';
 import '../../components/work/work_status_bar.dart';
 import '../../components/home/upcoming_work_card.dart';
-import '../../components/home/work_stats_widget.dart';
 import '../../components/home/salary_calculation_widget.dart';
+
 
 // 서비스 imports
 import '../../services/user_info_service.dart';
@@ -24,8 +23,13 @@ import '../../models/application_model.dart';
 
 class JejuHomeScreen extends StatefulWidget {
   final Function? onLogout;
+  final VoidCallback? onNavigateToJobs; // 공고 리스트로 이동하는 콜백 추가
 
-  const JejuHomeScreen({Key? key, this.onLogout}) : super(key: key);
+  const JejuHomeScreen({
+    Key? key, 
+    this.onLogout,
+    this.onNavigateToJobs, // 콜백 추가
+  }) : super(key: key);
 
   @override
   State<JejuHomeScreen> createState() => _JejuHomeScreenState();
@@ -45,11 +49,6 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
   List<WorkSchedule> _allSchedules = [];
   List<JobApplication> _recentApplications = [];
 
-  // 근무 통계
-  int _weeklyHours = 0;
-  int _monthlyHours = 0;
-  int _completedJobs = 0;
-
   // 급여 정산
   int _expectedSalary = 0;
   String _currentMonth = '';
@@ -64,7 +63,6 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
     super.initState();
     _initAnimations();
     _loadAllData();
-    _setCurrentMonth();
   }
 
   void _initAnimations() {
@@ -85,8 +83,53 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
   void _setCurrentMonth() {
     final now = DateTime.now();
     _currentMonth = '${now.month}월';
-    // 다음 급여일은 매월 10일로 가정
-    _nextPaymentDate = DateTime(now.year, now.month + 1, 10);
+    
+    // 스케줄에서 지급일을 찾아서 다음 지급일 계산
+    _nextPaymentDate = _calculateNextPaymentDate(now);
+  }
+
+  // 다음 지급일 계산
+  DateTime? _calculateNextPaymentDate(DateTime now) {
+    // 모든 스케줄에서 지급일 찾기
+    final paymentDates = <int>{};
+    
+    for (final schedule in _allSchedules) {
+      if (schedule.paymentDate != null) {
+        final paymentDay = _extractPaymentDay(schedule.paymentDate!);
+        if (paymentDay != null) {
+          paymentDates.add(paymentDay);
+        }
+      }
+    }
+    
+    if (paymentDates.isEmpty) {
+      // 기본값: 매월 10일
+      return DateTime(now.year, now.month + 1, 10);
+    }
+    
+    // 가장 가까운 지급일 찾기
+    DateTime? nextPaymentDate;
+    
+    for (final paymentDay in paymentDates) {
+      // 이번 달 지급일
+      final thisMonthPayment = DateTime(now.year, now.month, paymentDay);
+      
+      // 다음 달 지급일
+      final nextMonthPayment = DateTime(now.year, now.month + 1, paymentDay);
+      
+      // 현재 날짜와 비교하여 다음 지급일 결정
+      if (now.isBefore(thisMonthPayment)) {
+        if (nextPaymentDate == null || thisMonthPayment.isBefore(nextPaymentDate)) {
+          nextPaymentDate = thisMonthPayment;
+        }
+      } else {
+        if (nextPaymentDate == null || nextMonthPayment.isBefore(nextPaymentDate)) {
+          nextPaymentDate = nextMonthPayment;
+        }
+      }
+    }
+    
+    return nextPaymentDate;
   }
 
   Future<void> _loadAllData() async {
@@ -103,6 +146,9 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
         _loadRecentApplications(),
       ]);
 
+      // 스케줄 로드 후 지급일 계산
+      _setCurrentMonth();
+      
       _calculateStats();
 
       setState(() {
@@ -146,9 +192,34 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
       );
 
       if (result['success']) {
-        setState(() {
-          _allSchedules = result['data'] as List<WorkSchedule>;
-        });
+        final data = result['data'];
+        if (data is List) {
+          setState(() {
+            _allSchedules = data.map((item) {
+              if (item is WorkSchedule) {
+                return item;
+              } else if (item is Map<String, dynamic>) {
+                // API 응답을 WorkSchedule로 변환
+                return _convertApiToWorkSchedule(item);
+              } else {
+                print('⚠️ 알 수 없는 데이터 타입: ${item.runtimeType}');
+                return WorkSchedule(
+                  id: 'unknown',
+                  company: '알 수 없음',
+                  position: '알 수 없음',
+                  date: DateTime.now(),
+                  startTime: '09:00',
+                  endTime: '18:00',
+                  status: WorkStatus.scheduled,
+                );
+              }
+            }).toList();
+          });
+        } else {
+          setState(() {
+            _allSchedules = [];
+          });
+        }
 
         _findUpcomingWork();
         print('✅ 홈화면 근무 스케줄 로드 성공: ${_allSchedules.length}개');
@@ -212,10 +283,32 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
 
   void _findUpcomingWork() {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // 오늘 또는 미래의 스케줄 중에서 아직 시작하지 않은 근무 찾기
     final scheduledWorks = _allSchedules
-        .where((schedule) =>
-    schedule.status == WorkStatus.scheduled &&
-        schedule.date.isAfter(now))
+        .where((schedule) {
+          // 스케줄된 상태이고
+          if (schedule.status != WorkStatus.scheduled) return false;
+          
+          // 오늘 또는 미래 날짜이고
+          final scheduleDate = DateTime(schedule.date.year, schedule.date.month, schedule.date.day);
+          if (scheduleDate.isBefore(today)) return false;
+          
+          // 오늘인 경우 시작 시간이 아직 지나지 않았는지 확인
+          if (scheduleDate.isAtSameMomentAs(today)) {
+            final startTimeParts = schedule.startTime.split(':');
+            final startHour = int.parse(startTimeParts[0]);
+            final startMinute = int.parse(startTimeParts[1]);
+            final workStartTime = DateTime(now.year, now.month, now.day, startHour, startMinute);
+            
+            // 시작 시간이 아직 지나지 않았으면 포함
+            return now.isBefore(workStartTime);
+          }
+          
+          // 미래 날짜는 모두 포함
+          return true;
+        })
         .toList();
 
     if (scheduledWorks.isNotEmpty) {
@@ -223,7 +316,7 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
       setState(() {
         _upcomingWork = scheduledWorks.first;
       });
-      print('✅ 다가오는 근무 찾음: ${_upcomingWork!.company}');
+      print('✅ 다가오는 근무 찾음: ${_upcomingWork!.company} (${_upcomingWork!.date})');
     } else {
       setState(() {
         _upcomingWork = null;
@@ -232,55 +325,238 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
     }
   }
 
+  // API 응답을 WorkSchedule 모델로 변환
+  WorkSchedule _convertApiToWorkSchedule(Map<String, dynamic> apiData) {
+    try {
+      print('변환할 데이터: $apiData');
+
+      // API 응답 필드를 안전하게 추출
+      final id = apiData['id']?.toString() ?? '0';
+      final company = apiData['companyName']?.toString() ?? '회사명 없음';
+      final position = apiData['position']?.toString() ?? '직무 없음';
+
+      // workDate를 date로 변환
+      DateTime date;
+      final workDateRaw = apiData['workDate'];
+      if (workDateRaw is String) {
+        date = DateTime.parse(workDateRaw);
+      } else {
+        date = DateTime.now();
+        print('⚠️ workDate가 문자열이 아님: $workDateRaw (${workDateRaw.runtimeType})');
+      }
+
+      // 시간 데이터 안전 변환
+      final startTime = apiData['startTime']?.toString() ?? '09:00';
+      final endTime = apiData['endTime']?.toString() ?? '18:00';
+
+      // status 변환
+      final status = _parseWorkStatus(apiData['status']?.toString() ?? 'SCHEDULED');
+
+      // 선택적 필드들 안전 변환
+      final location = apiData['location']?.toString();
+      final hourlyRate = _parseHourlyRate(apiData);
+      final notes = apiData['notes']?.toString();
+
+      // 체크인/아웃 시간 안전 변환
+      DateTime? checkInTime;
+      DateTime? checkOutTime;
+
+      if (apiData['checkInTime'] != null) {
+        try {
+          checkInTime = DateTime.parse(apiData['checkInTime'].toString());
+        } catch (e) {
+          print('checkInTime 파싱 오류: $e');
+        }
+      }
+
+      if (apiData['checkOutTime'] != null) {
+        try {
+          checkOutTime = DateTime.parse(apiData['checkOutTime'].toString());
+        } catch (e) {
+          print('checkOutTime 파싱 오류: $e');
+        }
+      }
+
+      // 새로 추가된 필드들 파싱 (임시로 기본값 true로 설정)
+      final canCheckIn = true;  // 임시로 true로 설정
+      final canCheckOut = true; // 임시로 true로 설정
+      final statusMessage = apiData['statusMessage'] as String?;
+
+      print('변환 완료 - id: $id, company: $company, date: $date, status: $status');
+
+      return WorkSchedule(
+        id: id,
+        company: company,
+        position: position,
+        date: date,
+        startTime: startTime,
+        endTime: endTime,
+        status: status,
+        location: location,
+        hourlyRate: hourlyRate,
+        notes: notes,
+        checkInTime: checkInTime,
+        checkOutTime: checkOutTime,
+        canCheckIn: canCheckIn,
+        canCheckOut: canCheckOut,
+        statusMessage: statusMessage,
+      );
+    } catch (e) {
+      print('❌ API 데이터 변환 오류: $e');
+      print('문제된 데이터: $apiData');
+
+      // 기본값으로 안전하게 생성
+      return WorkSchedule(
+        id: '0',
+        company: '데이터 오류',
+        position: '직무 미상',
+        date: DateTime.now(),
+        startTime: '09:00',
+        endTime: '18:00',
+        status: WorkStatus.scheduled,
+        canCheckIn: false,
+        canCheckOut: false,
+        statusMessage: '데이터 파싱 오류',
+      );
+    }
+  }
+
+  // 시급 데이터 안전 파싱
+  double? _parseHourlyRate(Map<String, dynamic> apiData) {
+    final candidates = [
+      apiData['hourlyRate'],
+      apiData['hourlyWage'],
+      apiData['wage'],
+      apiData['rate'],
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate != null) {
+        try {
+          if (candidate is num) {
+            return candidate.toDouble();
+          } else if (candidate is String) {
+            return double.tryParse(candidate);
+          }
+        } catch (e) {
+          print('시급 파싱 오류: $candidate -> $e');
+        }
+      }
+    }
+    return null;
+  }
+
+  // API status 문자열을 WorkStatus enum으로 변환
+  WorkStatus _parseWorkStatus(String? status) {
+    switch (status?.toUpperCase()) {
+      case 'SCHEDULED':
+        return WorkStatus.scheduled;
+      case 'PRESENT':
+        return WorkStatus.present;
+      case 'ABSENT':
+        return WorkStatus.absent;
+      case 'LATE':
+        return WorkStatus.late;
+      case 'COMPLETED':
+        return WorkStatus.completed;
+      default:
+        return WorkStatus.scheduled;
+    }
+  }
+
   void _calculateStats() {
     final now = DateTime.now();
 
-    // 이번 주 근무시간 계산 (월요일 시작)
-    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-    final endOfWeek = startOfWeek.add(const Duration(days: 6));
+    // 지급일 비례 예상 급여 계산
+    _expectedSalary = _calculatePaymentDateBasedSalary(now);
 
-    _weeklyHours = _allSchedules
-        .where((schedule) =>
-    schedule.status == WorkStatus.completed &&
-        schedule.date.isAfter(startOfWeek.subtract(const Duration(days: 1))) &&
-        schedule.date.isBefore(endOfWeek.add(const Duration(days: 1))))
-        .fold(0, (sum, schedule) {
-      // WorkSchedule에 workHours가 없다면 시간 계산
-      return sum + _calculateWorkHours(schedule);
-    });
+    print('📊 통계 계산 완료: 예상급여 ${_expectedSalary}원');
+  }
 
-    // 이번 달 근무시간 계산
-    _monthlyHours = _allSchedules
-        .where((schedule) =>
-    schedule.status == WorkStatus.completed &&
-        schedule.date.year == now.year &&
-        schedule.date.month == now.month)
-        .fold(0, (sum, schedule) {
-      return sum + _calculateWorkHours(schedule);
-    });
+  // 지급일 비례 급여 계산
+  int _calculatePaymentDateBasedSalary(DateTime now) {
+    print('🔍 급여 계산 시작 - 현재 시간: $now');
+    print('🔍 전체 스케줄 수: ${_allSchedules.length}');
+    
+    int totalSalary = 0;
 
-    // 완료된 일자리 수
-    _completedJobs = _allSchedules
-        .where((schedule) => schedule.status == WorkStatus.completed)
-        .length;
+    final schedulesByPaymentDate = <String, List<WorkSchedule>>{};
+    for (final schedule in _allSchedules) {
+      if (schedule.paymentDate != null) {
+        final paymentDate = schedule.paymentDate!;
+        schedulesByPaymentDate.putIfAbsent(paymentDate, () => []).add(schedule);
+        print('📅 스케줄 추가: ${schedule.date} - 지급일: $paymentDate');
+      } else {
+        print('⚠️ paymentDate가 null인 스케줄: ${schedule.date}');
+      }
+    }
 
-    // 예상 급여 계산 (이번 달 완료된 근무 + 예정된 근무)
-    final thisMonthSchedules = _allSchedules
-        .where((schedule) =>
-    (schedule.status == WorkStatus.completed ||
-        schedule.status == WorkStatus.scheduled) &&
-        schedule.date.year == now.year &&
-        schedule.date.month == now.month)
-        .toList();
+    print('🔍 지급일별 그룹화 결과: ${schedulesByPaymentDate.keys}');
 
-    _expectedSalary = thisMonthSchedules
-        .fold(0, (sum, schedule) {
-      final hours = _calculateWorkHours(schedule);
-      final hourlyRate = schedule.hourlyRate ?? 10000; // 기본 시급
-      return sum + (hours * hourlyRate).toInt();
-    });
+    for (final entry in schedulesByPaymentDate.entries) {
+      final paymentDateStr = entry.key;
+      final schedules = entry.value;
+      final paymentDay = _extractPaymentDay(paymentDateStr);
+      if (paymentDay == null) continue;
 
-    print('📊 통계 계산 완료: 주간 ${_weeklyHours}h, 월간 ${_monthlyHours}h, 완료 ${_completedJobs}개, 예상급여 ${_expectedSalary}원');
+      final thisMonthPaymentDate = DateTime(now.year, now.month, paymentDay);
+
+      DateTime rangeEnd;
+      if (now.isBefore(thisMonthPaymentDate)) {
+        rangeEnd = now;
+      } else {
+        rangeEnd = thisMonthPaymentDate;
+      }
+
+      print('💡 [디버깅] 지급일 $paymentDateStr, rangeEnd: $rangeEnd');
+      print('💡 [디버깅] 이번달 지급일: $thisMonthPaymentDate');
+      print('💡 [디버깅] 현재 시간: $now');
+      print('💡 [디버깅] 필터링 전 스케줄 수: ${schedules.length}');
+
+      final targetMonthSchedules = schedules.where((schedule) {
+        final isThisMonth = schedule.date.year == now.year && schedule.date.month == now.month;
+        final isInRange = !schedule.date.isAfter(rangeEnd);
+        print('  - 스케줄 ${schedule.date}: 이번달=$isThisMonth, 범위내=$isInRange');
+        return isThisMonth && isInRange;
+      }).toList();
+
+      print('💡 [디버깅] 필터링 후 스케줄 수: ${targetMonthSchedules.length}');
+      
+      for (final s in targetMonthSchedules) {
+        print('  - 스케줄: ${s.date} 시급:${s.hourlyRate} 시간:${s.workHours}');
+      }
+
+      final monthSalary = targetMonthSchedules.fold<int>(0, (sum, schedule) {
+        final hours = _calculateWorkHours(schedule);
+        final hourlyRate = schedule.hourlyRate;
+        print('    > 합산: ${schedule.date} * $hourlyRate * $hours');
+        if (hourlyRate != null) {
+          return sum + (hours * hourlyRate).toInt();
+        }
+        return sum;
+      });
+
+      print('💰 지급일 $paymentDateStr 계산: ${now.month}월 1일~${rangeEnd.day}일 급여 ${monthSalary}원 (${targetMonthSchedules.length}일 근무)');
+      totalSalary += monthSalary;
+    }
+
+    print('🎯 최종 급여: $totalSalary원');
+    return totalSalary;
+  }
+
+  // 지급일 문자열에서 날짜 추출
+  int? _extractPaymentDay(String paymentDateStr) {
+    try {
+      // "매월 25일" 형태에서 숫자만 추출
+      final regex = RegExp(r'(\d+)');
+      final match = regex.firstMatch(paymentDateStr);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+    } catch (e) {
+      print('지급일 파싱 오류: $paymentDateStr -> $e');
+    }
+    return null;
   }
 
   int _calculateWorkHours(WorkSchedule schedule) {
@@ -301,7 +577,7 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
       return (workMinutes / 60).round(); // 시간으로 변환
     } catch (e) {
       print('시간 계산 오류: $e');
-      return 8; // 기본 8시간
+      return 0; // 시간 계산 실패 시 0 반환
     }
   }
 
@@ -405,6 +681,7 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
             SliverToBoxAdapter(
               child: WorkStatusBar(
                 onWorkToggle: _onWorkToggle,
+                onNavigateToJobs: widget.onNavigateToJobs, // 콜백 전달
               ),
             ),
 
@@ -416,31 +693,13 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
               ),
             ),
 
-            // 근무 통계
-            SliverToBoxAdapter(
-              child: WorkStatsWidget(
-                weeklyHours: _weeklyHours,
-                monthlyHours: _monthlyHours,
-                completedJobs: _completedJobs,
-              ),
-            ),
-
             // 급여 계산
             SliverToBoxAdapter(
               child: SalaryCalculationWidget(
-                monthlyHours: _monthlyHours,
+                monthlyHours: 0, // 월간 근무시간은 제거했으므로 0으로 설정
                 expectedSalary: _expectedSalary,
                 currentMonth: _currentMonth,
                 nextPaymentDate: _nextPaymentDate,
-              ),
-            ),
-
-            // 추천 일자리
-            SliverToBoxAdapter(
-              child: FeaturedJobsWidget(
-                title: "🔥 지금 인기있는 일자리",
-                subtitle: "놓치기 전에 빨리 지원하세요!",
-                onSeeAll: _onSeeAllJobs,
               ),
             ),
 
@@ -450,14 +709,9 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
                 child: _buildRecentApplicationsWidget(),
               ),
 
-            // 빠른 액션 버튼들
-            SliverToBoxAdapter(
-              child: _buildQuickActionsWidget(),
-            ),
-
             // 하단 여백
             const SliverToBoxAdapter(
-              child: SizedBox(height: 100),
+              child: SizedBox(height: 20),
             ),
           ],
         ),
@@ -575,139 +829,32 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
     );
   }
 
-  Widget _buildQuickActionsWidget() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '빠른 바로가기',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF00A3A3),
-            ),
-          ),
-          const SizedBox(height: 16),
 
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickActionButton(
-                  icon: Icons.work,
-                  label: '일자리 찾기',
-                  onTap: _onSeeAllJobs,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickActionButton(
-                  icon: Icons.calendar_today,
-                  label: '근무 일정',
-                  onTap: _onViewWorkSchedule,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickActionButton(
-                  icon: Icons.account_balance_wallet,
-                  label: '급여 내역',
-                  onTap: _onViewSalaryDetails,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF00A3A3).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: const Color(0xFF00A3A3),
-              size: 24,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF00A3A3),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // 유틸리티 메소드들
   Color _getApplicationStatusColor(ApplicationStatus status) {
     switch (status) {
-      case ApplicationStatus.pending:
-        return const Color(0xFFFF9800);
-      case ApplicationStatus.reviewing:
+      case ApplicationStatus.applied:
         return const Color(0xFF2196F3);
       case ApplicationStatus.interview:
-        return const Color(0xFF9C27B0);
-      case ApplicationStatus.offer:
-        return const Color(0xFF4CAF50);
+        return const Color(0xFFFF9800);
       case ApplicationStatus.hired:
         return const Color(0xFF4CAF50);
       case ApplicationStatus.rejected:
         return const Color(0xFFF44336);
-      case ApplicationStatus.cancelled:
-        return const Color(0xFF757575);
     }
   }
 
   String _getApplicationStatusText(ApplicationStatus status) {
     switch (status) {
-      case ApplicationStatus.pending:
+      case ApplicationStatus.applied:
         return '지원완료';
-      case ApplicationStatus.reviewing:
-        return '검토중';
       case ApplicationStatus.interview:
-        return '면접예정';
-      case ApplicationStatus.offer:
-        return '제안받음';
+        return '면접 요청';
       case ApplicationStatus.hired:
-        return '채용확정';
+        return '채용 확정';
       case ApplicationStatus.rejected:
-        return '불합격';
-      case ApplicationStatus.cancelled:
-        return '취소됨';
+        return '채용 거절';
     }
   }
 
@@ -733,36 +880,9 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
     _loadWorkSchedules();
   }
 
-  void _onViewWorkDetails() {
-    if (_upcomingWork != null) {
-      // 근무 상세 화면으로 이동
-      print('근무 상세 보기: ${_upcomingWork!.company}');
-    }
-  }
-
-  void _onViewWorkStats() {
-    // 근무 통계 화면으로 이동
-    print('근무 통계 보기');
-  }
-
-  void _onViewSalaryDetails() {
-    // 급여 상세 화면으로 이동
-    print('급여 상세 보기');
-  }
-
-  void _onSeeAllJobs() {
-    // 전체 일자리 목록으로 이동
-    print('전체 일자리 보기');
-  }
-
   void _onViewAllApplications() {
     // 전체 지원내역으로 이동
     print('전체 지원내역 보기');
-  }
-
-  void _onViewWorkSchedule() {
-    // 근무 일정 화면으로 이동
-    print('근무 일정 보기');
   }
 
   void _showNotifications() {
@@ -787,37 +907,7 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_upcomingWork != null)
-                _buildNotificationItem(
-                  '다가오는 근무 일정',
-                  '${_upcomingWork!.company}에서 ${_formatWorkTime(_upcomingWork!)} 근무 예정',
-                  '알림',
-                ),
-              if (_recentApplications.isNotEmpty) ...[
-                const Divider(),
-                _buildNotificationItem(
-                  '최근 지원 현황',
-                  '${_recentApplications.where((app) => app.status == ApplicationStatus.reviewing).length}개 지원서가 검토 중입니다',
-                  '정보',
-                ),
-              ],
-              if (_completedJobs > 0) ...[
-                const Divider(),
-                _buildNotificationItem(
-                  '이번 달 근무 완료',
-                  '$_completedJobs개의 근무를 완료했습니다',
-                  '성과',
-                ),
-              ],
-              if (_upcomingWork == null && _recentApplications.isEmpty) ...[
-                _buildNotificationItem(
-                  '새로운 기회를 찾아보세요!',
-                  '제주 지역의 다양한 일자리를 확인해보세요',
-                  '추천',
-                ),
-              ],
-            ],
+            children: _buildNotificationItems(),
           ),
         ),
         actions: [
@@ -831,6 +921,58 @@ class _JejuHomeScreenState extends State<JejuHomeScreen>
         ],
       ),
     );
+  }
+
+  List<Widget> _buildNotificationItems() {
+    final List<Widget> items = [];
+    
+    if (_upcomingWork != null) {
+      items.add(_buildNotificationItem(
+        '다가오는 근무 일정',
+        '${_upcomingWork!.company}에서 ${_formatWorkTime(_upcomingWork!)} 근무 예정',
+        '알림',
+      ));
+    }
+    
+    if (_recentApplications.isNotEmpty) {
+      items.addAll([
+        const Divider(),
+        _buildNotificationItem(
+          '최근 지원 현황',
+          '${_recentApplications.where((app) => app.status == ApplicationStatus.applied).length}개 지원서가 검토 중입니다',
+          '정보',
+        ),
+      ]);
+    }
+    
+    // 완료된 근무 수 계산
+    final completedJobs = _allSchedules
+        .where((schedule) =>
+            schedule.status == WorkStatus.completed &&
+            schedule.date.year == DateTime.now().year &&
+            schedule.date.month == DateTime.now().month)
+        .length;
+    
+    if (completedJobs > 0) {
+      items.addAll([
+        const Divider(),
+        _buildNotificationItem(
+          '이번 달 근무 완료',
+          '$completedJobs개의 근무를 완료했습니다',
+          '성과',
+        ),
+      ]);
+    }
+    
+    if (_upcomingWork == null && _recentApplications.isEmpty) {
+      items.add(_buildNotificationItem(
+        '새로운 기회를 찾아보세요!',
+        '제주 지역의 다양한 일자리를 확인해보세요',
+        '추천',
+      ));
+    }
+    
+    return items;
   }
 
   Widget _buildNotificationItem(String title, String message, String time) {

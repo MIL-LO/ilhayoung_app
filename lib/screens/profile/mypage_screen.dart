@@ -8,8 +8,12 @@ import '../../services/auth_service.dart';
 import '../../services/account_deletion_service.dart';
 import '../../services/user_info_service.dart';
 import '../../services/manager_info_service.dart'; // 사업자 정보 API 서비스
+import '../../services/job_api_service.dart'; // 공고 통계 데이터 로드용
+import '../../services/applicant_management_service.dart'; // 지원자 조회용
+import '../../models/job_posting_model.dart'; // JobPosting 모델
 import 'user_info_screen.dart';
 import 'manager_info_screen.dart'; // 사업자 정보 화면
+import '../employer/jobs/job_management_screen.dart'; // 내 공고 관리 화면
 
 class MyPageScreen extends StatefulWidget {
   final UserType userType;
@@ -35,6 +39,10 @@ class _MyPageScreenState extends State<MyPageScreen>
   // API에서 가져올 사용자 정보
   Map<String, dynamic>? _userInfo;
   String? _errorMessage;
+  
+  // 통계 데이터
+  int _activeJobsCount = 0;
+  int _totalWorkersCount = 0;
 
   @override
   void initState() {
@@ -79,6 +87,11 @@ class _MyPageScreenState extends State<MyPageScreen>
 
         print('✅ 사용자 정보 로드 성공: ${userInfo['name']}');
         _animationController.forward();
+        
+        // 사업자인 경우 공고 통계 데이터도 로드
+        if (widget.userType == UserType.manager) {
+          _loadJobStatistics();
+        }
       } else {
         setState(() {
           _isLoading = false;
@@ -93,6 +106,66 @@ class _MyPageScreenState extends State<MyPageScreen>
       });
     }
   }
+  
+  /// 공고 통계 데이터 로드
+  Future<void> _loadJobStatistics() async {
+    try {
+      print('=== 마이페이지 공고 통계 로드 시작 ===');
+      
+      // 내 공고 목록 조회
+      final result = await JobApiService.getJobPostings(
+        page: 0,
+        size: 100, // 충분히 큰 수로 설정
+        myJobsOnly: true,
+      );
+      
+      if (result['success'] && result['data'] != null) {
+        final List<JobPosting> myJobs = result['data'] as List<JobPosting>;
+        
+        // 활성 공고 수 계산 (ACTIVE 상태인 공고)
+        final activeJobs = myJobs.where((job) => 
+          job.status == 'ACTIVE' || job.status == 'active'
+        ).length;
+        
+        // 총 근무자 수 계산 (승인된 지원자만 카운트)
+        int totalWorkers = 0;
+        for (final job in myJobs) {
+          try {
+            // 각 공고별로 승인된 지원자 수 조회
+            final applicantsResult = await ApplicantManagementService.getJobApplicants(job.id);
+            
+            if (applicantsResult['success'] && applicantsResult['data'] != null) {
+              final List<dynamic> applicants = applicantsResult['data'];
+              
+              // HIRED 상태인 지원자만 카운트 (승인되어 스케줄에 등록된 사람)
+              final hiredApplicants = applicants.where((applicant) => 
+                applicant.status == 'HIRED'
+              ).length;
+              
+              totalWorkers += hiredApplicants;
+              
+              print('공고 "${job.title}": 승인된 지원자 $hiredApplicants명');
+            }
+          } catch (e) {
+            print('⚠️ 공고 ${job.id} 지원자 조회 실패: $e');
+          }
+        }
+        
+        setState(() {
+          _activeJobsCount = activeJobs;
+          _totalWorkersCount = totalWorkers;
+        });
+        
+        print('✅ 공고 통계 로드 성공');
+        print('- 활성 공고: $_activeJobsCount개');
+        print('- 총 근무자 (승인됨): $_totalWorkersCount명');
+      } else {
+        print('⚠️ 공고 통계 로드 실패: ${result['error']}');
+      }
+    } catch (e) {
+      print('❌ 공고 통계 로드 중 오류: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -102,7 +175,7 @@ class _MyPageScreenState extends State<MyPageScreen>
 
   @override
   Widget build(BuildContext context) {
-    final bool isEmployer = widget.userType == UserType.employer;
+    final bool isEmployer = widget.userType == UserType.manager;
     final Color primaryColor = isEmployer
         ? const Color(0xFF2D3748) // 사업자용 현무암색
         : const Color(0xFF00A3A3); // 구직자용 제주 바다색
@@ -191,11 +264,8 @@ class _MyPageScreenState extends State<MyPageScreen>
               _buildProfileCard(primaryColor, isEmployer),
               const SizedBox(height: 24),
               _buildMenuSection(primaryColor, isEmployer),
-              const SizedBox(height: 24),
-              _buildSettingsSection(primaryColor),
               const SizedBox(height: 32),
               _buildLogoutButton(primaryColor),
-              const SizedBox(height: 100),
             ],
           ),
         ),
@@ -206,7 +276,7 @@ class _MyPageScreenState extends State<MyPageScreen>
   Widget _buildProfileCard(Color primaryColor, bool isEmployer) {
     final String userName = _userInfo?['name'] ?? '사용자';
     final String userEmail = _userInfo?['email'] ?? '';
-    final String businessName = _userInfo?['businessName'] ?? '';
+    final String businessName = _userInfo?['companyName'] ?? '';
     final String businessAddress = _userInfo?['businessAddress'] ?? '';
 
     String displayName = userName;
@@ -305,11 +375,11 @@ class _MyPageScreenState extends State<MyPageScreen>
             Row(
               children: [
                 Expanded(
-                  child: _buildProfileStat('활성 공고', '0', Icons.work),
+                  child: _buildProfileStat('활성 공고', _activeJobsCount.toString(), Icons.work),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildProfileStat('근무자', '0', Icons.people),
+                  child: _buildProfileStat('근무자', _totalWorkersCount.toString(), Icons.people),
                 ),
               ],
             ),
@@ -391,25 +461,18 @@ class _MyPageScreenState extends State<MyPageScreen>
 
           if (isEmployer) ...[
             _buildMenuItem(
-              '내 공고 관리',
-              '등록된 공고를 확인하고 관리하세요',
+              '내 공고 및 지원자 관리',
+              '공고 등록, 수정, 지원자 현황을 한눈에 관리하세요',
               Icons.work_outline,
               primaryColor,
-                  () => _showFeatureDialog('내 공고 관리'),
-            ),
-            _buildMenuItem(
-              '지원자 관리',
-              '지원자 현황을 확인하고 관리하세요',
-              Icons.people_outline,
-              primaryColor,
-                  () => _showFeatureDialog('지원자 관리'),
+              () => _showFeatureDialog('내 공고 관리'),
             ),
             _buildMenuItem(
               '급여 관리',
               '근무자 급여를 계산하고 관리하세요',
               Icons.account_balance_wallet_outlined,
               primaryColor,
-                  () => _showFeatureDialog('급여 관리'),
+              () => _showFeatureDialog('급여 관리'),
             ),
             _buildMenuItem(
               '사업자 정보',
@@ -417,6 +480,13 @@ class _MyPageScreenState extends State<MyPageScreen>
               Icons.store_outlined,
               primaryColor,
               _showManagerInfo, // 🔧 사업자 정보 조회 함수 연결
+            ),
+            _buildMenuItem(
+              '회원 탈퇴',
+              '계정을 영구적으로 삭제하고 모든 데이터를 제거합니다',
+              Icons.delete_forever_outlined,
+              Colors.red[400]!,
+              _showAccountDeletionDialog,
             ),
           ] else ...[
             _buildMenuItem(
@@ -565,13 +635,6 @@ class _MyPageScreenState extends State<MyPageScreen>
                 () => _showFeatureDialog('계정 설정'),
           ),
           _buildMenuItem(
-            '회원 탈퇴',
-            '계정을 영구적으로 삭제합니다',
-            Icons.delete_forever_outlined,
-            Colors.red[400]!,
-            _showAccountDeletionDialog,
-          ),
-          _buildMenuItem(
             '고객센터',
             '문의사항이나 도움이 필요하시면 연락하세요',
             Icons.help_outline,
@@ -716,6 +779,18 @@ class _MyPageScreenState extends State<MyPageScreen>
   }
 
   void _showFeatureDialog(String feature) {
+    // 내 공고 관리인 경우 실제 화면으로 이동
+    if (feature == '내 공고 관리') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const JobManagementScreen(),
+        ),
+      );
+      return;
+    }
+    
+    // 다른 기능들은 기존 다이얼로그 표시
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

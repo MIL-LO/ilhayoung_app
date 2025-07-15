@@ -6,7 +6,7 @@ import '../core/constants/app_constants.dart';
 import 'auth_service.dart';
 
 class SignupService {
-  static const String _baseUrl = AppConstants.baseUrl;
+  static String get _baseUrl => AppConstants.baseUrl;
 
   /// 구직자(STAFF) 회원가입 완료
   static Future<Map<String, dynamic>> completeStaffSignup({
@@ -73,6 +73,7 @@ class SignupService {
   static Future<Map<String, dynamic>> completeManagerSignup({
     required String birthDate,
     required String phone,
+    required String businessName,
     required String businessAddress,
     required String businessNumber,
     required String businessType,
@@ -84,6 +85,7 @@ class SignupService {
       final requestBody = {
         'birthDate': birthDate,
         'phone': phone,
+        'companyName': businessName,
         'businessAddress': businessAddress,
         'businessNumber': businessNumber,
         'businessType': businessType,

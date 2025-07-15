@@ -223,15 +223,35 @@ class UpcomingWorkCard extends StatelessWidget {
     if (upcomingWork == null) return Duration.zero;
 
     final now = DateTime.now();
+    
+    // 시간 파싱 (HH:MM:SS 형식에서 HH:MM만 추출)
+    final startTimeParts = upcomingWork!.startTime.split(':');
+    final startHour = int.parse(startTimeParts[0]);
+    final startMinute = int.parse(startTimeParts[1]);
+    
     final workDateTime = DateTime(
       upcomingWork!.date.year,
       upcomingWork!.date.month,
       upcomingWork!.date.day,
-      int.parse(upcomingWork!.startTime.split(':')[0]),
-      int.parse(upcomingWork!.startTime.split(':')[1]),
+      startHour,
+      startMinute,
     );
 
-    return workDateTime.difference(now);
+    // 디버깅 로그 추가
+    print('=== 시간 계산 디버깅 ===');
+    print('현재 시간: $now (${now.timeZoneName})');
+    print('근무 시작 시간: $workDateTime');
+    print('근무 날짜: ${upcomingWork!.date}');
+    print('근무 시작 시간 문자열: ${upcomingWork!.startTime}');
+    print('파싱된 시간: ${startHour}시 ${startMinute}분');
+    
+    final difference = workDateTime.difference(now);
+    print('시간 차이: $difference');
+    print('일: ${difference.inDays}, 시간: ${difference.inHours.remainder(24)}, 분: ${difference.inMinutes.remainder(60)}');
+    print('총 분: ${difference.inMinutes}');
+    print('총 시간: ${difference.inHours}');
+    
+    return difference;
   }
 
   String _formatTimeUntil(Duration duration) {

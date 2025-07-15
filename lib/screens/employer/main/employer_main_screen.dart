@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../components/common/unified_app_header.dart';
+import '../../../services/employer_dashboard_service.dart';
 
 class EmployerMainScreen extends StatefulWidget {
   final Function? onLogout;
@@ -18,20 +19,25 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
 
-  // 임시 데이터 (실제로는 API에서 가져올 데이터)
+  // API 연동을 위한 상태 변수
+  bool _isLoading = true;
+  Map<String, dynamic>? _dashboardData;
+  String _errorMessage = '';
+
+  // 기본 데이터 (API 실패 시 fallback)
   final String _businessName = "제주카페";
   final String _ownerName = "김사업";
   final int _todayAttendance = 5;
   final int _totalStaff = 8;
   final int _activeJobs = 3;
   final int _pendingApplications = 12;
-  final int _thisWeekSales = 2450000;
   final int _thisWeekWages = 680000;
 
   @override
   void initState() {
     super.initState();
     _initAnimations();
+    _loadDashboardData();
   }
 
   void _initAnimations() {
@@ -63,6 +69,34 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
     _slideController.forward();
   }
 
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      final result = await EmployerDashboardService.getDashboardData();
+      
+      if (result['success']) {
+        setState(() {
+          _dashboardData = result['data'];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['error'] ?? '데이터를 불러오는데 실패했습니다.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = '네트워크 오류가 발생했습니다.';
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _fadeController.dispose();
@@ -75,33 +109,94 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FFFE),
       appBar: UnifiedAppHeader(
-        title: '사업자 메인',
+        title: '내 사업장 대시보드',
         subtitle: '오늘도 성공적인 사업을 위해',
         emoji: '🏢',
       ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildWelcomeCard(),
-                const SizedBox(height: 24),
-                _buildStatusDashboard(),
-                const SizedBox(height: 24),
-                _buildQuickActions(),
-                const SizedBox(height: 24),
-                _buildTodaysTasks(),
-                const SizedBox(height: 24),
-                _buildRecentActivity(),
-                const SizedBox(height: 100), // 네비게이션 바 여백
-              ],
-            ),
+      body: RefreshIndicator(
+        onRefresh: _loadDashboardData,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: _isLoading
+                ? _buildLoadingView()
+                : _errorMessage.isNotEmpty
+                    ? _buildErrorView()
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildWelcomeCard(),
+                            const SizedBox(height: 24),
+                            _buildStatusDashboard(),
+                            const SizedBox(height: 24),
+                            _buildQuickActions(),
+                            const SizedBox(height: 24),
+                            _buildTodaysTasks(),
+                            const SizedBox(height: 24),
+                            _buildRecentActivity(),
+                            const SizedBox(height: 100), // 네비게이션 바 여백
+                          ],
+                        ),
+                      ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingView() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2D3748)),
+          ),
+          SizedBox(height: 16),
+          Text(
+            '데이터를 불러오는 중...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Color(0xFF2D3748),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _errorMessage,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadDashboardData,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2D3748),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('다시 시도'),
+          ),
+        ],
       ),
     );
   }
@@ -122,6 +217,13 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
       greeting = "오늘도 수고하셨어요";
       emoji = "🌙";
     }
+
+    // 현재 로그인한 매니저의 데이터 사용
+            final businessName = _dashboardData?['companyName'] ?? _businessName;
+    final ownerName = _dashboardData?['ownerName'] ?? _ownerName;
+    final todayAttendance = _dashboardData?['todayAttendance'] ?? _todayAttendance;
+    final totalStaff = _dashboardData?['totalStaff'] ?? _totalStaff;
+    final activeJobs = _dashboardData?['activeJobs'] ?? _activeJobs;
 
     return Container(
       width: double.infinity,
@@ -156,7 +258,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$greeting, $_ownerName님!',
+                      '$greeting, $ownerName님!',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -165,7 +267,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$_businessName 운영 현황',
+                      '$businessName 운영 현황',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.white.withOpacity(0.9),
@@ -182,7 +284,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
               Expanded(
                 child: _buildWelcomeStatItem(
                   '오늘 출근',
-                  '$_todayAttendance/$_totalStaff명',
+                  '$todayAttendance/$totalStaff명',
                   Icons.people,
                 ),
               ),
@@ -190,7 +292,7 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
               Expanded(
                 child: _buildWelcomeStatItem(
                   '활성 공고',
-                  '$_activeJobs개',
+                  '${activeJobs}개',
                   Icons.work,
                 ),
               ),
@@ -240,6 +342,12 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   }
 
   Widget _buildStatusDashboard() {
+    // 현재 로그인한 매니저의 데이터 사용
+    final pendingApplications = _dashboardData?['pendingApplications'] ?? _pendingApplications;
+    final thisWeekWages = _dashboardData?['thisWeekWages'] ?? _thisWeekWages;
+    final todayAttendance = _dashboardData?['todayAttendance'] ?? _todayAttendance;
+    final totalStaff = _dashboardData?['totalStaff'] ?? _totalStaff;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -256,22 +364,22 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
           children: [
             Expanded(
               child: _buildDashboardCard(
-                '대기 중인 지원서',
-                _pendingApplications.toString(),
-                '개',
+                '내 공고 지원서',
+                pendingApplications.toString(),
+                '건',
                 Icons.inbox,
                 Colors.red,
-                showBadge: _pendingApplications > 0,
+                showBadge: pendingApplications > 0,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildDashboardCard(
-                '이번 주 매출',
-                _formatCurrency(_thisWeekSales),
+                '이번 주 급여 지급',
+                _formatCurrency(thisWeekWages),
                 '원',
-                Icons.trending_up,
-                Colors.green,
+                Icons.account_balance_wallet,
+                Colors.blue,
               ),
             ),
           ],
@@ -281,21 +389,21 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
           children: [
             Expanded(
               child: _buildDashboardCard(
-                '이번 주 급여',
-                _formatCurrency(_thisWeekWages),
-                '원',
-                Icons.account_balance_wallet,
-                Colors.blue,
+                '출근율',
+                '${_safeAttendanceRate(todayAttendance, totalStaff)}',
+                '%',
+                Icons.access_time,
+                Colors.orange,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildDashboardCard(
-                '출근율',
-                '${((_todayAttendance / _totalStaff) * 100).round()}',
-                '%',
-                Icons.access_time,
-                Colors.orange,
+                '활성 공고',
+                (_dashboardData?['activeJobs'] ?? _activeJobs).toString(),
+                '개',
+                Icons.work,
+                Colors.green,
               ),
             ),
           ],
@@ -388,6 +496,9 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   }
 
   Widget _buildQuickActions() {
+    // 현재 로그인한 매니저의 데이터 사용
+    final pendingApplications = _dashboardData?['pendingApplications'] ?? _pendingApplications;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -428,12 +539,12 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
           children: [
             Expanded(
               child: _buildActionButton(
-                '지원 현황',
+                '내 공고 지원',
                 '새로운 지원자 확인',
                 Icons.inbox_outlined,
                 const Color(0xFFE74C3C),
                 () => _navigateToApplications(),
-                badge: _pendingApplications > 0 ? _pendingApplications : null,
+                badge: pendingApplications > 0 ? pendingApplications : null,
               ),
             ),
             const SizedBox(width: 12),
@@ -540,6 +651,11 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   }
 
   Widget _buildTodaysTasks() {
+    // 현재 로그인한 매니저의 데이터 사용
+    final pendingApplications = _dashboardData?['pendingApplications'] ?? _pendingApplications;
+    final todayAttendance = _dashboardData?['todayAttendance'] ?? _todayAttendance;
+    final totalStaff = _dashboardData?['totalStaff'] ?? _totalStaff;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -552,24 +668,25 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
           ),
         ),
         const SizedBox(height: 16),
+        if (pendingApplications > 0)
+          _buildTaskCard(
+            '내 공고 지원서 확인',
+            '새로운 지원서가 ${pendingApplications}건 있어요',
+            Icons.mail_outline,
+            Colors.red,
+            isUrgent: true,
+          ),
+        if (pendingApplications > 0) const SizedBox(height: 12),
         _buildTaskCard(
-          '새로운 지원서 확인',
-          '카페 아르바이트에 7명, 홀서빙에 5명이 지원했어요',
-          Icons.mail_outline,
-          Colors.red,
-          isUrgent: true,
-        ),
-        const SizedBox(height: 12),
-        _buildTaskCard(
-          '오늘 출근 예정자',
-          '김○○, 이○○, 박○○님이 오늘 출근 예정입니다',
+          '오늘 출근 현황',
+          '현재 ${todayAttendance}/${totalStaff}명이 출근했어요',
           Icons.schedule,
           Colors.blue,
         ),
         const SizedBox(height: 12),
         _buildTaskCard(
-          '급여 지급 안내',
-          '이번 주 금요일 급여 지급일입니다',
+          '급여 지급 준비',
+          '이번 주 급여 지급을 준비해주세요',
           Icons.account_balance_wallet,
           Colors.green,
         ),
@@ -667,6 +784,34 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
   }
 
   Widget _buildRecentActivity() {
+    // 현재 로그인한 매니저의 최근 활동 가져오기 (기본값 제공)
+    final activities = _dashboardData?['recentActivities'] as List? ?? [
+      {
+        'activity': '김○○님이 출근했어요',
+        'time': '30분 전',
+        'icon': 'login',
+        'color': 'green',
+      },
+      {
+        'activity': '새로운 지원이 있어요',
+        'time': '1시간 전',
+        'icon': 'person_add',
+        'color': 'blue',
+      },
+      {
+        'activity': '이○○님이 퇴근했어요',
+        'time': '2시간 전',
+        'icon': 'logout',
+        'color': 'orange',
+      },
+      {
+        'activity': '공고가 게시되었어요',
+        'time': '3시간 전',
+        'icon': 'work',
+        'color': 'purple',
+      },
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -679,30 +824,12 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
           ),
         ),
         const SizedBox(height: 16),
-        _buildActivityItem(
-          '김○○님이 출근했어요',
-          '30분 전',
-          Icons.login,
-          Colors.green,
-        ),
-        _buildActivityItem(
-          '카페 아르바이트에 새로운 지원이 있어요',
-          '1시간 전',
-          Icons.person_add,
-          Colors.blue,
-        ),
-        _buildActivityItem(
-          '이○○님이 퇴근했어요',
-          '2시간 전',
-          Icons.logout,
-          Colors.orange,
-        ),
-        _buildActivityItem(
-          '홀서빙 공고가 게시되었어요',
-          '3시간 전',
-          Icons.work,
-          Colors.purple,
-        ),
+        ...activities.map((activity) => _buildActivityItem(
+          activity['activity'] as String,
+          activity['time'] as String,
+          _getIconFromString(activity['icon'] as String),
+          _getColorFromString(activity['color'] as String),
+        )).toList(),
       ],
     );
   }
@@ -757,6 +884,57 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
     return (amount / 10000).round().toString() + '만';
   }
 
+  // String을 IconData로 변환하는 헬퍼 메서드
+  IconData _getIconFromString(String iconName) {
+    switch (iconName) {
+      case 'login':
+        return Icons.login;
+      case 'logout':
+        return Icons.logout;
+      case 'person_add':
+        return Icons.person_add;
+      case 'work':
+        return Icons.work;
+      case 'schedule':
+        return Icons.schedule;
+      case 'event':
+        return Icons.event;
+      case 'local_offer':
+        return Icons.local_offer;
+      case 'check_circle':
+        return Icons.check_circle;
+      case 'cancel':
+        return Icons.cancel;
+      case 'close':
+        return Icons.close;
+      default:
+        return Icons.info;
+    }
+  }
+
+  // String을 Color로 변환하는 헬퍼 메서드
+  Color _getColorFromString(String colorName) {
+    switch (colorName) {
+      case 'green':
+        return Colors.green;
+      case 'blue':
+        return Colors.blue;
+      case 'orange':
+        return Colors.orange;
+      case 'purple':
+        return Colors.purple;
+      case 'red':
+        return Colors.red;
+      case 'grey':
+      case 'gray':
+        return Colors.grey;
+      case 'teal':
+        return const Color(0xFF00A3A3); // 제주 바다색
+      default:
+        return Colors.grey;
+    }
+  }
+
   // 네비게이션 메서드들
   void _navigateToCreateJob() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -801,4 +979,21 @@ class _EmployerMainScreenState extends State<EmployerMainScreen>
     );
     // TODO: 급여 계산 화면으로 이동
   }
+}
+
+int _safeAttendanceRate(int todayAttendance, int totalStaff) {
+  if (totalStaff == 0) return 0;
+  final rate = (todayAttendance / totalStaff) * 100;
+  if (rate.isNaN || rate.isInfinite) return 0;
+  return rate.round();
+}
+
+int safeToInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  if (value is double) {
+    if (value.isNaN || value.isInfinite) return 0;
+    return value.toInt();
+  }
+  return int.tryParse(value.toString()) ?? 0;
 }

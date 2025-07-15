@@ -5,6 +5,39 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ilhayoung_app/main.dart';
 
+// 헬퍼 함수들
+Future<void> completeWorkerLogin(WidgetTester tester) async {
+  // 구직자 선택 (기본값이므로 생략 가능)
+  // await tester.tap(find.text('🌊 구직자'));
+  // await tester.pump();
+
+  // 카카오 로그인
+  await tester.tap(find.text('카카오로 시작하기'));
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 3)); // 로그인 완료 대기
+
+  // 정보입력 화면에서 시작하기 버튼 클릭 (테스트 데이터가 자동 입력됨)
+  await tester.tap(find.text('🌊 시작하기'));
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 3)); // 정보입력 완료 대기
+}
+
+Future<void> completeEmployerLogin(WidgetTester tester) async {
+  // 자영업자 선택
+  await tester.tap(find.text('🏔️ 자영업자'));
+  await tester.pump();
+
+  // 카카오 로그인
+  await tester.tap(find.text('카카오로 시작하기'));
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 3)); // 로그인 완료 대기
+
+  // 사업자 정보입력 화면에서 등록 완료 버튼 클릭 (테스트 데이터가 자동 입력됨)
+  await tester.tap(find.text('등록 완료'));
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 3)); // 정보입력 완료 대기
+}
+
 void main() {
   testWidgets('제주 일하영 앱 로그인 화면 테스트', (WidgetTester tester) async {
     // 🌊 제주 테마 앱을 빌드하고 프레임 트리거
@@ -170,7 +203,7 @@ void main() {
     );
 
     // 구직자로 로그인하고 정보입력 완료까지 진행
-    await _completeWorkerLogin(tester);
+    await completeWorkerLogin(tester);
 
     // 메인 화면 네비게이션 바 확인
     expect(find.text('공고'), findsOneWidget);
@@ -201,7 +234,7 @@ void main() {
     );
 
     // 사업자로 로그인하고 정보입력 완료까지 진행
-    await _completeEmployerLogin(tester);
+    await completeEmployerLogin(tester);
 
     // 사업자 메인 화면 네비게이션 바 확인
     expect(find.text('공고'), findsOneWidget);
@@ -229,7 +262,7 @@ void main() {
     );
 
     // 사업자로 로그인 완료
-    await _completeEmployerLogin(tester);
+    await completeEmployerLogin(tester);
 
     // 공고 탭으로 이동
     await tester.tap(find.text('공고'));
@@ -258,7 +291,7 @@ void main() {
     );
 
     // 사업자로 로그인 완료
-    await _completeEmployerLogin(tester);
+    await completeEmployerLogin(tester);
 
     // 급여정산 탭으로 이동
     await tester.tap(find.text('급여정산'));
@@ -312,7 +345,7 @@ void main() {
     );
 
     // 구직자로 로그인 완료
-    await _completeWorkerLogin(tester);
+    await completeWorkerLogin(tester);
 
     // 근무 탭으로 이동
     await tester.tap(find.text('근무'));
@@ -330,36 +363,4 @@ void main() {
     expect(find.text('오름지수'), findsWidgets);
   });
 
-  // 헬퍼 함수들
-  Future<void> _completeWorkerLogin(WidgetTester tester) async {
-    // 구직자 선택 (기본값이므로 생략 가능)
-    // await tester.tap(find.text('🌊 구직자'));
-    // await tester.pump();
-
-    // 카카오 로그인
-    await tester.tap(find.text('카카오로 시작하기'));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 3)); // 로그인 완료 대기
-
-    // 정보입력 화면에서 시작하기 버튼 클릭 (테스트 데이터가 자동 입력됨)
-    await tester.tap(find.text('🌊 시작하기'));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 3)); // 정보입력 완료 대기
-  }
-
-  Future<void> _completeEmployerLogin(WidgetTester tester) async {
-    // 자영업자 선택
-    await tester.tap(find.text('🏔️ 자영업자'));
-    await tester.pump();
-
-    // 카카오 로그인
-    await tester.tap(find.text('카카오로 시작하기'));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 3)); // 로그인 완료 대기
-
-    // 사업자 정보입력 화면에서 등록 완료 버튼 클릭 (테스트 데이터가 자동 입력됨)
-    await tester.tap(find.text('등록 완료'));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 3)); // 정보입력 완료 대기
-  }
 }

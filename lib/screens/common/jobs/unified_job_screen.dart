@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 
 class UnifiedJobScreen extends StatefulWidget {
   final String userType; // 'worker' or 'employer'
+  final int initialTab; // 초기 탭 인덱스 (기본값: 0)
 
   const UnifiedJobScreen({
     Key? key,
     required this.userType,
+    this.initialTab = 0,
   }) : super(key: key);
 
   @override
@@ -31,6 +33,13 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
     // 사용자 타입에 따라 탭 개수 결정
     int tabCount = widget.userType == 'employer' ? 3 : 2;
     _tabController = TabController(length: tabCount, vsync: this);
+    
+    // 초기 탭 설정 (유효한 범위 내에서)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.initialTab < tabCount) {
+        _tabController.animateTo(widget.initialTab);
+      }
+    });
   }
 
   @override
@@ -44,13 +53,13 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('📋 공고'),
+        title: Text(widget.initialTab == 1 ? '📋 내 공고 관리' : '📋 공고'),
         backgroundColor: widget.userType == 'employer'
             ? const Color(0xFF2D3748)
             : const Color(0xFF0EA5E9),
         foregroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: widget.initialTab == 1, // 내 공고 관리에서는 뒤로가기 버튼 표시
         actions: [
           IconButton(
             icon: Icon(

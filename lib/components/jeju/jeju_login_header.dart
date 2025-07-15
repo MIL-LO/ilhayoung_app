@@ -188,25 +188,6 @@ class _JejuLoginHeaderState extends State<JejuLoginHeader>
 
                   SizedBox(height: ResponsiveHelper.isMobile(context) ? 24 : 28),
 
-                  // 앱 제목
-                  Text(
-                    '일하영',
-                    style: TextStyle(
-                      fontSize: titleSize,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontFamily: '.SF Pro Display',
-                      letterSpacing: -1.5,
-                      shadows: [
-                        Shadow(
-                          color: JejuTheme.basaltDark.withOpacity(0.3),
-                          offset: const Offset(0, 2),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                  ),
-
                   const SizedBox(height: 12),
 
                   // 부제목 (현무암 배경)

@@ -40,11 +40,11 @@ class EmployerSignupService {
 
       // 3️⃣ 요청 데이터 구성 - API 스펙에 맞춤
       final requestBody = {
-        'businessName': businessName.trim(),
+        'companyName': businessName.trim(),
         'businessNumber': businessNumber.replaceAll('-', ''), // 하이픈 제거
         'businessType': businessType.trim(),
         'businessAddress': businessAddress.trim(),
-        'ownerName': ownerName.trim(),
+        'representativeName': ownerName.trim(),
         'phone': phone.trim(),
       };
 
@@ -179,7 +179,7 @@ class EmployerSignupService {
 
     return {
       'success': false,
-      'error': '회원가입 중 오류가 발생했습니다: ${errorMessage.length > 100 ? errorMessage.substring(0, 100) + '...' : errorMessage}',
+      'error': '회원가입 중 오류가 발생했습니다: ${errorMessage.length > 100 ? '${errorMessage.substring(0, 100)}...' : errorMessage}',
     };
   }
 

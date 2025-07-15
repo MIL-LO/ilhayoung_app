@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../core/enums/user_type.dart';
+import '../services/auth_service.dart';
+import '../services/user_sync_service.dart';
+import '../config/app_config.dart';
 
 // 인증 상태 열거형
 enum AuthStatus {
@@ -58,10 +61,22 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _initializeAuth();
   }
 
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
+  
+  // 중복 호출 방지를 위한 플래그
+  bool _isInitializing = false;
+  bool _isRefreshing = false;
 
   /// 🎯 핵심: validate API로 자동 로그인 초기화
   Future<void> _initializeAuth() async {
+    // 중복 호출 방지
+    if (_isInitializing) {
+      print('⚠️ _initializeAuth 중복 호출 방지');
+      return;
+    }
+    
+    _isInitializing = true;
+    
     try {
       print('=== 🚀 AuthStateProvider _initializeAuth 시작 ===');
 
@@ -155,6 +170,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         error: e.toString(),
       );
     } finally {
+      _isInitializing = false;
       print('=== AuthStateProvider _initializeAuth 완료 ===');
       print('최종 상태: ${state.status}');
       print('최종 사용자 타입: ${state.userType}');
@@ -312,7 +328,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       case 'MANAGER':
       case 'OWNER':
       case 'EMPLOYER':
-        return UserType.employer;
+        return UserType.manager;
       default:
         print('⚠️ 알 수 없는 사용자 타입: $userTypeString');
         return null;
@@ -324,8 +340,6 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     switch (userType) {
       case UserType.worker:
         return 'STAFF';
-      case UserType.employer:
-        return 'MANAGER';
       case UserType.manager:
         return 'MANAGER';
     }
@@ -487,8 +501,20 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
 
   /// 상태 새로고침 (자동로그인 재시도)
   Future<void> refresh() async {
-    print('🔄 AuthStateProvider refresh 호출');
-    await _initializeAuth();
+    // 중복 호출 방지
+    if (_isRefreshing) {
+      print('⚠️ refresh 중복 호출 방지');
+      return;
+    }
+    
+    _isRefreshing = true;
+    
+    try {
+      print('🔄 AuthStateProvider refresh 호출');
+      await _initializeAuth();
+    } finally {
+      _isRefreshing = false;
+    }
   }
 
   /// 자동 로그인 가능 여부 확인
@@ -497,7 +523,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         state.accessToken != null &&
         state.accessToken!.isNotEmpty &&
         (state.userStatus == 'ACTIVE' || state.userStatus == 'VERIFIED') &&
-        (state.userType == UserType.worker || state.userType == UserType.employer);
+        (state.userType == UserType.worker || state.userType == UserType.manager);
 
     print('🔍 canAutoLogin 체크: $result');
     print('  status: ${state.status}');

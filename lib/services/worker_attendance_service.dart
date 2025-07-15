@@ -4,9 +4,10 @@ import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
 
 class WorkerAttendanceService {
-  static const String baseUrl = 'https://api.ilhayoung.com';
+  static String get baseUrl => AppConfig.baseUrl;
 
   /// 전체 근로자 출석 현황 조회 (MANAGER)
   static Future<Map<String, dynamic>> getAttendanceOverview() async {
@@ -21,7 +22,7 @@ class WorkerAttendanceService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/api/attendances/overview'),
+        Uri.parse('$baseUrl/api/v1/attendances/overview'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -78,7 +79,7 @@ class WorkerAttendanceService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/api/attendances/staff/$staffId/detail'),
+        Uri.parse('$baseUrl/api/v1/attendances/staff/$staffId/detail'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -145,11 +146,10 @@ class WorkerAttendanceService {
 
       final requestBody = {
         'status': status,
-        'timestamp': DateTime.now().toIso8601String(),
       };
 
       final response = await http.put(
-        Uri.parse('$baseUrl/api/attendances/staff/$staffId/status'),
+        Uri.parse('$baseUrl/api/v1/attendances/staff/$staffId/status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -240,7 +240,7 @@ class WorkerAttendanceService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/api/attendances/overview?date=$date'),
+        Uri.parse('$baseUrl/api/v1/attendances/overview?date=$date'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -299,7 +299,7 @@ class WorkerAttendanceService {
         return {'success': false, 'error': '로그인이 필요합니다'};
       }
 
-      String url = '$baseUrl/api/attendances/statistics';
+      String url = '$baseUrl/api/v1/attendances/statistics';
       List<String> queryParams = [];
 
       if (startDate != null) {

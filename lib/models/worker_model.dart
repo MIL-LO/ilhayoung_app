@@ -47,6 +47,65 @@ class Worker {
     );
   }
 
+  // 출석 현황 API 데이터로부터 Worker 객체 생성
+  factory Worker.fromAttendanceData(Map<String, dynamic> json) {
+    return Worker(
+      id: json['staffId'] ?? '',
+      applicationId: '', // 출석 데이터에는 없음
+      jobId: '', // 출석 데이터에는 없음
+      name: json['staffName'] ?? '',
+      contact: '', // 출석 데이터에는 없음
+      address: '', // 출석 데이터에는 없음
+      hiredDate: DateTime.now(), // 기본값
+      startDate: null,
+      endDate: null,
+      status: _mapAttendanceStatusToWorkerStatus(json['todayStatus'] ?? 'SCHEDULED'),
+      hourlyRate: null, // 출석 데이터에는 없음
+      workLocation: json['workLocation'] ?? '',
+      workDetails: null,
+    );
+  }
+
+  // 출석 상태를 근무자 상태로 매핑 (백엔드 WorkStatus enum과 일치)
+  static String _mapAttendanceStatusToWorkerStatus(String attendanceStatus) {
+    switch (attendanceStatus.toUpperCase()) {
+      case 'SCHEDULED': // 예정
+        return 'HIRED';
+      case 'PRESENT':   // 출근
+      case 'LATE':      // 지각
+        return 'WORKING';
+      case 'COMPLETED': // 완료
+        return 'COMPLETED';
+      case 'ABSENT':    // 결근
+        return 'TERMINATED';
+      default:
+        return 'HIRED';
+    }
+  }
+
+  // HIRED 상태인 지원자 데이터로부터 Worker 객체 생성
+  factory Worker.fromHiredApplicant(Map<String, dynamic> applicant, Map<String, dynamic> job) {
+    return Worker(
+      id: applicant['id'] ?? '',
+      applicationId: applicant['id'] ?? '',
+      jobId: job['id'] ?? '',
+      name: applicant['name'] ?? '',
+      contact: applicant['contact'] ?? '',
+      address: applicant['address'] ?? '',
+      hiredDate: DateTime.now(), // 지원서 생성일을 고용일로 사용
+      startDate: null, // 스케줄 생성 후 설정
+      endDate: null,
+      status: 'HIRED', // HIRED 상태로 고정
+      hourlyRate: (job['salary'] as num?)?.toDouble(),
+      workLocation: job['workLocation'] ?? '',
+      workDetails: {
+        'jobType': job['jobType'],
+        'position': job['position'],
+        'companyName': job['companyName'],
+      },
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

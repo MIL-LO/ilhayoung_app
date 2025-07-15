@@ -27,6 +27,64 @@ class UserInfoService {
     }
   }
 
+  /// 🎯 특정 사용자 ID로 정보 조회 (고용된 직원 정보용)
+  static Future<Map<String, dynamic>?> getUserInfoById(String userId) async {
+    try {
+      print('=== 특정 사용자 정보 조회 시작 ===');
+      print('사용자 ID: $userId');
+
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access_token');
+
+      if (accessToken == null) {
+        print('❌ 액세스 토큰이 없습니다');
+        return null;
+      }
+
+      // API 호출
+      final url = '$baseUrl/users/$userId';
+      print('특정 사용자 정보 조회 API URL: $url');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      print('특정 사용자 정보 조회 응답 상태: ${response.statusCode}');
+      print('특정 사용자 정보 조회 응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ 특정 사용자 정보 조회 성공');
+
+        return {
+          'success': true,
+          'data': data['data'], // API 응답에서 data 필드 추출
+        };
+
+      } else {
+        print('❌ 특정 사용자 정보 조회 실패: ${response.statusCode}');
+
+        String errorMessage;
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['message'] ?? '사용자 정보를 불러올 수 없습니다';
+        } catch (e) {
+          errorMessage = '사용자 정보 조회에 실패했습니다 (${response.statusCode})';
+        }
+
+        return null;
+      }
+
+    } catch (e) {
+      print('❌ 특정 사용자 정보 조회 중 오류: $e');
+      return null;
+    }
+  }
+
   /// 🎯 UserInfoScreen용 사용자 정보 조회 (Exception 기반)
   static Future<Map<String, dynamic>> fetchUserInfo() async {
     try {
@@ -162,30 +220,17 @@ class UserInfoService {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-
-        if (responseData['code'] == 'SUCCESS') {
-          print('✅ 사용자 정보 업데이트 성공');
-          return {
-            'success': true,
-            'message': responseData['message'] ?? '정보가 성공적으로 업데이트되었습니다',
-            'data': responseData['data'],
-          };
-        } else {
-          print('❌ API 오류: ${responseData['message']}');
-          return {
-            'success': false,
-            'error': responseData['message'] ?? '정보 업데이트에 실패했습니다',
-          };
-        }
+        return {
+          'success': true,
+          'message': responseData['message'] ?? '정보가 성공적으로 업데이트되었습니다',
+        };
       } else {
-        print('❌ HTTP 오류: ${response.statusCode}');
-
         String errorMessage;
         try {
           final errorData = json.decode(response.body);
-          errorMessage = errorData['message'] ?? 'HTTP ${response.statusCode}: 서버 오류가 발생했습니다';
+          errorMessage = errorData['message'] ?? '정보 업데이트에 실패했습니다';
         } catch (e) {
-          errorMessage = 'HTTP ${response.statusCode}: 서버 오류가 발생했습니다';
+          errorMessage = '정보 업데이트에 실패했습니다 (${response.statusCode})';
         }
 
         return {
@@ -194,7 +239,7 @@ class UserInfoService {
         };
       }
     } catch (e) {
-      print('❌ 사용자 정보 업데이트 예외: $e');
+      print('❌ 사용자 정보 업데이트 중 오류: $e');
       return {
         'success': false,
         'error': '네트워크 오류가 발생했습니다: $e',

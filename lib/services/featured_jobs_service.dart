@@ -1,28 +1,25 @@
 // lib/services/featured_jobs_service.dart - 수정된 인기 채용공고 API 서비스
 
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../models/job_posting_model.dart';
+import '../config/app_config.dart';
 
 class FeaturedJobsService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
-  /// 인기/추천 채용공고 조회
+  /// 인기/추천 채용공고 조회 (토큰 불필요)
   static Future<Map<String, dynamic>> getFeaturedJobs({
     int size = 10,
   }) async {
     try {
-      print('=== 인기 채용공고 조회 API 호출 ===');
-
-      final prefs = await SharedPreferences.getInstance();
-      final accessToken = prefs.getString('access_token');
+      print('=== 인기 채용공고 조회 API 호출 (토큰 불필요) ===');
 
       final queryParams = <String, String>{
         'size': size.toString(),
       };
 
-      final uri = Uri.parse('$baseUrl/recruits/featured').replace(queryParameters: queryParams);
+      final uri = Uri.parse('$baseUrl/recruits').replace(queryParameters: queryParams);
       print('API URL: $uri');
 
       final headers = <String, String>{
@@ -30,9 +27,7 @@ class FeaturedJobsService {
         'Accept': 'application/json',
       };
 
-      if (accessToken != null) {
-        headers['Authorization'] = 'Bearer $accessToken';
-      }
+      // 🔧 토큰 없이 요청 (백엔드에서 권한 제한 없이 변경됨)
 
       final response = await http.get(uri, headers: headers);
 

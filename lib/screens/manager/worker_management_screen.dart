@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../providers/employer_job_provider.dart';
-import '../../services/worker_attendance_service.dart';
-import '../../services/schedule_management_service.dart';
-import '../../services/applicant_management_service.dart';
-import '../../models/worker_attendance_model.dart';
-import '../../components/worker_management/attendance_detail_sheet.dart';
-import '../../components/worker_management/schedule_detail_sheet.dart';
-import '../../components/worker_management/hired_workers_dialog.dart';
-import '../../components/worker_management/schedule_creation_dialog.dart';
-import '../../components/common/unified_app_header.dart';
+import 'package:ilhayoung_app/components/common/unified_app_header.dart';
+import 'package:ilhayoung_app/components/worker_management/attendance_detail_sheet.dart';
+import 'package:ilhayoung_app/components/worker_management/schedule_detail_sheet.dart';
+import 'package:ilhayoung_app/models/worker_attendance_model.dart';
+import 'package:ilhayoung_app/screens/employer/workers/hired_workers_screen.dart';
+import 'package:ilhayoung_app/services/applicant_management_service.dart';
+import 'package:ilhayoung_app/services/schedule_management_service.dart';
+import 'package:ilhayoung_app/services/worker_attendance_service.dart';
+import 'package:ilhayoung_app/services/job_api_service.dart';
 
 class WorkerManagementScreen extends StatefulWidget {
   const WorkerManagementScreen({Key? key}) : super(key: key);
@@ -32,9 +31,9 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
   // 필터링
   String _selectedDate = '';
   String _selectedStatus = 'ALL';
-
-  // FAB 애니메이션 상태
-  bool _isFabExpanded = false;
+  
+  // 로컬 상태 보존을 위한 Map (직원 ID -> 상태)
+  final Map<String, String> _localStatusMap = {};
 
   @override
   void initState() {
@@ -54,24 +53,17 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
   Future<Map<String, dynamic>> _getHiredWorkersFromAllJobs() async {
     try {
       print('=== 모든 공고에서 HIRED 직원 조회 시작 ===');
-
-      final jobsResult = await JobApiService.getMyJobs();
-      if (jobsResult['jobs'] == null) {
+      
+      final jobsResult = await JobApiService.getJobPostings(myJobsOnly: true);
+      if (!jobsResult['success']) {
         return {
           'success': false,
-          'error': '공고 목록을 불러올 수 없습니다',
+          'error': '채용공고 목록을 불러올 수 없습니다: ${jobsResult['error']}',
         };
       }
 
-      final jobs = jobsResult['jobs'] as List<JobPosting>? ?? [];
+      final jobs = jobsResult['data'] as List<dynamic>? ?? [];
       print('📋 총 공고 수: ${jobs.length}');
-
-      if (jobs.isEmpty) {
-        return {
-          'success': true,
-          'data': [],
-        };
-      }
 
       final List<dynamic> allHiredWorkers = [];
 
@@ -80,29 +72,39 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
           final jobId = job.id?.toString();
           if (jobId == null) continue;
 
+          print('=== 채용공고 지원자 목록 조회 API 호출 ===');
+          print('공고 ID: $jobId');
+          
           final applicantsResult = await ApplicantManagementService.getJobApplicants(jobId);
 
           if (applicantsResult['success']) {
-            final applicants = applicantsResult['data'] as List<JobApplicant>? ?? [];
+            final applicants = applicantsResult['data'] as List<dynamic>? ?? [];
             final hiredApplicants = applicants.where((applicant) {
-              return applicant.status.toUpperCase() == 'HIRED';
+              return applicant.status?.toString().toUpperCase() == 'HIRED';
             }).toList();
 
+            print('✅ 공고 $jobId에서 HIRED 직원 ${hiredApplicants.length}명 발견');
+
             for (final applicant in hiredApplicants) {
+              // 실제 지원자 정보를 사용
               allHiredWorkers.add({
-                'id': applicant.id,
-                'name': applicant.name,
-                'workLocation': job.location ?? '근무지 미정',
-                'hourlyRate': double.tryParse(job.salary) ?? 12000.0,
+                'id': applicant.id?.toString() ?? '',
+                'name': applicant.name?.toString() ?? '이름 없음',
+                'contact': applicant.contact?.toString() ?? '연락처 없음',
+                'climateScore': applicant.climateScore?.toInt() ?? 0,
+                'workLocation': job.workLocation?.toString() ?? '',
+                'hourlyRate': job.salary?.toDouble() ?? 0.0,
                 'jobId': jobId,
-                'jobTitle': job.title,
-                'hiredDate': applicant.appliedAt.toIso8601String(),
-                'contact': applicant.contact,
+                'jobTitle': job.title?.toString() ?? '',
+                'companyName': job.companyName?.toString() ?? '',
+                'position': job.position?.toString() ?? '',
+                'hiredDate': applicant.appliedAt?.toString() ?? '',
                 'status': 'HIRED',
-                'applicationId': applicant.id,
-                'climateScore': applicant.climateScore,
+                'applicationId': applicant.id?.toString() ?? '',
               });
             }
+          } else {
+            print('❌ 공고 $jobId 지원자 목록 조회 실패: ${applicantsResult['error']}');
           }
         } catch (e) {
           print('❌ 공고 처리 중 오류: $e');
@@ -110,11 +112,14 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
         }
       }
 
+      print('✅ 총 HIRED 직원 수: ${allHiredWorkers.length}명');
+      
       return {
         'success': true,
         'data': allHiredWorkers,
       };
     } catch (e) {
+      print('❌ HIRED 직원 조회 중 오류: $e');
       return {
         'success': false,
         'error': 'HIRED 직원 정보를 불러오는 중 오류가 발생했습니다: $e',
@@ -155,12 +160,11 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
               _attendances = [];
             }
           } else if (attendanceData is Map) {
-            // API가 Map 형태로 응답하는 경우
-            final attendancesList = attendanceData['attendances'] as List<dynamic>? ??
-                attendanceData['data'] as List<dynamic>? ??
-                [];
+            // API가 Map 형태로 응답하는 경우 - workers 필드에서 직원 목록 추출
+            final workersList = attendanceData['workers'] as List<dynamic>? ?? [];
             try {
-              _attendances = attendancesList.map((item) => WorkerAttendance.fromJson(item)).toList();
+              _attendances = workersList.map((item) => WorkerAttendance.fromJson(item)).toList();
+              print('✅ 출석 데이터 파싱 성공: ${_attendances.length}명');
             } catch (e) {
               print('❌ WorkerAttendance 변환 오류 (Map): $e');
               _attendances = [];
@@ -210,6 +214,12 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
         if (workersResult['success']) {
           _hiredWorkers = workersResult['data'] as List<dynamic>? ?? [];
           print('✅ 고용된 직원 수: ${_hiredWorkers.length}');
+          
+          // 출석 기록에 고용된 직원의 상세 정보 연결
+          _enrichAttendanceData();
+          
+          // 스케줄 데이터에 직원 정보 보강
+          _enrichScheduleData();
         } else {
           print('❌ 고용된 직원 데이터 로드 실패: ${workersResult['error']}');
           _hiredWorkers = [];
@@ -235,6 +245,149 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
     }
   }
 
+  /// 출석 기록에 고용된 직원의 상세 정보를 연결
+  void _enrichAttendanceData() {
+    if (_hiredWorkers.isEmpty || _attendances.isEmpty) return;
+    
+    print('=== 출석 데이터 보강 시작 ===');
+    
+    // 고용된 직원 정보를 Map으로 변환 (이름을 키로 사용하여 매칭)
+    final hiredWorkersMap = <String, Map<String, dynamic>>{};
+    for (final worker in _hiredWorkers) {
+      final name = worker['name']?.toString() ?? '';
+      if (name.isNotEmpty) {
+        hiredWorkersMap[name] = worker;
+      }
+    }
+    
+    print('고용된 직원 Map (이름 기준): ${hiredWorkersMap.keys.toList()}');
+    print('출석 기록 직원들: ${_attendances.map((a) => a.staffName).toList()}');
+    print('스케줄 직원들: ${_schedules.map((s) => s.staffName).toList()}');
+    
+    // 출석 기록을 보강 (기본 정보만)
+    for (int i = 0; i < _attendances.length; i++) {
+      final attendance = _attendances[i];
+      final hiredWorker = hiredWorkersMap[attendance.staffName];
+      
+      if (hiredWorker != null) {
+        print('직원 ${attendance.staffName}의 기본 정보 연결');
+        
+        final position = hiredWorker['position']?.toString() ?? '';
+        final workLocation = hiredWorker['workLocation']?.toString() ?? attendance.workLocation;
+        
+        // 상태 보존: 로컬 상태가 있으면 우선 사용, 없으면 서버 상태 사용
+        final localStatus = _localStatusMap[attendance.staffId];
+        final preservedStatus = localStatus ?? attendance.status;
+        
+        print('직원 ${attendance.staffName} 상태 보존 - 서버: ${attendance.status}, 로컬: $localStatus, 최종: $preservedStatus');
+        
+        // 출근 관리에서는 기본 정보만 표시
+        _attendances[i] = attendance.copyWith(
+          workLocation: workLocation,
+          notes: '직책: $position',
+          status: preservedStatus, // 상태 보존
+        );
+      } else {
+        print('직원 ${attendance.staffName}의 기본 정보를 찾을 수 없음 (이름: ${attendance.staffName})');
+        
+        // 스케줄에서 해당 직원의 기본 정보 찾기
+        final todaySchedule = _schedules.where((s) {
+          final scheduleDate = _formatDate(s.startTime);
+          return scheduleDate == _selectedDate && s.staffName == attendance.staffName;
+        }).firstOrNull;
+        
+        if (todaySchedule != null) {
+          print('스케줄에서 직원 ${attendance.staffName}의 기본 정보 찾음');
+          
+          // 상태 보존
+          final localStatus = _localStatusMap[attendance.staffId];
+          final preservedStatus = localStatus ?? attendance.status;
+          
+          _attendances[i] = attendance.copyWith(
+            notes: '직책: ${todaySchedule.position ?? '미확인'}',
+            status: preservedStatus, // 상태 보존
+          );
+        } else {
+          // 상태 보존
+          final localStatus = _localStatusMap[attendance.staffId];
+          final preservedStatus = localStatus ?? attendance.status;
+          
+          _attendances[i] = attendance.copyWith(
+            notes: '직책: 미확인',
+            status: preservedStatus, // 상태 보존
+          );
+        }
+      }
+    }
+    
+    print('=== 출석 데이터 보강 완료 ===');
+  }
+
+  /// 스케줄 데이터에 직원 정보를 보강
+  void _enrichScheduleData() {
+    if (_hiredWorkers.isEmpty || _schedules.isEmpty) return;
+    
+    print('=== 스케줄 데이터 보강 시작 ===');
+    
+    // 출석 데이터에서 직원 정보 가져오기 (이름이 확실히 있는 데이터)
+    final attendanceWorkerNames = _attendances.map((a) => a.staffName).where((name) => name.isNotEmpty).toSet();
+    print('출석 데이터 직원들: $attendanceWorkerNames');
+    
+    // 고용된 직원 정보를 Map으로 변환
+    final hiredWorkersMap = <String, Map<String, dynamic>>{};
+    for (final worker in _hiredWorkers) {
+      final name = worker['name']?.toString() ?? '';
+      if (name.isNotEmpty) {
+        hiredWorkersMap[name] = worker;
+      }
+    }
+    
+    // 스케줄 데이터 보강 - 모든 스케줄에 직원 이름 추가
+    for (int i = 0; i < _schedules.length; i++) {
+      final schedule = _schedules[i];
+      
+      // 모든 스케줄에 직원 이름 추가 (비어있거나 빈 문자열인 경우)
+      if (attendanceWorkerNames.isNotEmpty) {
+        final workerName = attendanceWorkerNames.first;
+        
+        // 스케줄에 직원 이름이 비어있거나 빈 문자열인 경우에만 추가
+        if (schedule.staffName.isEmpty || schedule.staffName == '') {
+          print('스케줄 ${schedule.scheduleId}에 직원 이름 추가: $workerName');
+        }
+        
+        // 고용된 직원 정보에서 상세 정보 가져오기
+        final hiredWorker = hiredWorkersMap[workerName];
+        final position = hiredWorker?['position']?.toString() ?? '';
+        final workLocation = hiredWorker?['workLocation']?.toString() ?? schedule.workLocation;
+        final hourlyRate = hiredWorker?['hourlyRate']?.toDouble() ?? schedule.hourlyRate;
+        final jobTitle = hiredWorker?['jobTitle']?.toString() ?? '';
+        
+        _schedules[i] = schedule.copyWith(
+          staffName: workerName,
+          workLocation: workLocation,
+          hourlyRate: hourlyRate,
+          position: position,
+          jobTitle: jobTitle,
+        );
+      }
+    }
+    
+    print('=== 스케줄 데이터 보강 완료 ===');
+    print('보강된 스케줄 직원들: ${_schedules.map((s) => s.staffName).toList()}');
+  }
+
+
+
+  /// 시간을 HH:mm 형식으로 포맷
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// 근무 시간과 시급을 기반으로 예상급여 계산
+  double _calculateEstimatedSalary(double hourlyRate, double workHours) {
+    return hourlyRate * workHours;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,19 +399,16 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _loadData();
-            },
+            onPressed: _isLoading ? null : _loadData,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh, color: Color(0xFF2D3748)),
             tooltip: '새로고침',
           ),
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: _showDatePicker,
-            tooltip: '날짜 선택',
-          ),
-          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -273,121 +423,6 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
           ),
         ],
       ),
-      floatingActionButton: _buildExpandableFab(),
-    );
-  }
-
-  // === 확장 가능한 FAB 구현 ===
-  Widget _buildExpandableFab() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          height: _isFabExpanded ? 56 : 0,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _isFabExpanded ? 1.0 : 0.0,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: FloatingActionButton.extended(
-                heroTag: "schedule_fab",
-                onPressed: _isFabExpanded ? _showScheduleCreationDialog : null,
-                backgroundColor: const Color(0xFF4CAF50),
-                foregroundColor: Colors.white,
-                icon: const Icon(Icons.schedule, size: 20),
-                label: const Text('스케줄 생성', style: TextStyle(fontSize: 14)),
-              ),
-            ),
-          ),
-        ),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          height: _isFabExpanded ? 56 : 0,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _isFabExpanded ? 1.0 : 0.0,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: FloatingActionButton.extended(
-                heroTag: "workers_fab",
-                onPressed: _isFabExpanded ? _showHiredWorkersDialog : null,
-                backgroundColor: const Color(0xFF2196F3),
-                foregroundColor: Colors.white,
-                icon: const Icon(Icons.people, size: 20),
-                label: const Text('고용된 직원', style: TextStyle(fontSize: 14)),
-              ),
-            ),
-          ),
-        ),
-        FloatingActionButton(
-          heroTag: "main_fab",
-          onPressed: () {
-            setState(() {
-              _isFabExpanded = !_isFabExpanded;
-            });
-            HapticFeedback.lightImpact();
-          },
-          backgroundColor: const Color(0xFF2D3748),
-          foregroundColor: Colors.white,
-          child: AnimatedRotation(
-            turns: _isFabExpanded ? 0.125 : 0.0,
-            duration: const Duration(milliseconds: 300),
-            child: Icon(_isFabExpanded ? Icons.close : Icons.add),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // === 다이얼로그 표시 메서드들 ===
-  void _showHiredWorkersDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => HiredWorkersDialog(
-        hiredWorkers: _hiredWorkers,
-        onWorkerSelected: _createScheduleForWorker,
-      ),
-    );
-  }
-
-  void _showScheduleCreationDialog() {
-    if (_hiredWorkers.isEmpty) {
-      _showErrorMessage('고용된 직원이 없습니다. 먼저 직원을 고용해주세요.');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => ScheduleCreationDialog(
-        hiredWorkers: _hiredWorkers,
-        onScheduleCreated: () {
-          _loadData();
-          setState(() {
-            _isFabExpanded = false;
-          });
-        },
-      ),
-    );
-  }
-
-  void _createScheduleForWorker(dynamic worker) {
-    Navigator.pop(context);
-
-    showDialog(
-      context: context,
-      builder: (context) => ScheduleCreationDialog(
-        hiredWorkers: _hiredWorkers,
-        selectedWorker: worker,
-        onScheduleCreated: () {
-          _loadData();
-          setState(() {
-            _isFabExpanded = false;
-          });
-        },
-      ),
     );
   }
 
@@ -395,7 +430,7 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
   Widget _buildTabBar() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 50,
+      height: 70,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
@@ -461,6 +496,25 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
     final presentWorkers = _attendances.where((a) => a.status == 'PRESENT').length;
     final lateWorkers = _attendances.where((a) => a.status == 'LATE').length;
     final absentWorkers = _attendances.where((a) => a.status == 'ABSENT').length;
+    
+    // 예정자 수 계산: 고용된 직원 중 오늘 스케줄이 있지만 아직 출근하지 않은 직원들
+    final todaySchedules = _schedules.where((s) {
+      final scheduleDate = _formatDate(s.startTime);
+      return scheduleDate == _selectedDate;
+    }).toList();
+    
+    // 고용된 직원 중 오늘 스케줄이 있는 직원 수 (중복 제거, 이름 기준)
+    final scheduledWorkerNames = todaySchedules
+        .map((s) => s.staffName)
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    final scheduledWorkers = scheduledWorkerNames.length;
+    final presentWorkerNames = _attendances
+        .where((a) => a.status == 'PRESENT' || a.status == 'LATE')
+        .map((a) => a.staffName)
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    final scheduledButNotPresent = scheduledWorkerNames.difference(presentWorkerNames).length;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -523,12 +577,16 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  '고용: ${_hiredWorkers.length}명',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                child: InkWell(
+                  onTap: () => _navigateToHiredWorkers(),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Text(
+                    '고용: ${_hiredWorkers.length}명',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -538,11 +596,13 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
           Row(
             children: [
               _buildSummaryItem('전체', '$totalWorkers명', Icons.people, Colors.blue[300]!),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
+              _buildSummaryItem('예정', '$scheduledButNotPresent명', Icons.schedule, Colors.purple[300]!),
+              const SizedBox(width: 12),
               _buildSummaryItem('출근', '$presentWorkers명', Icons.check_circle, Colors.green[300]!),
-              const SizedBox(width: 16),
-              _buildSummaryItem('지각', '$lateWorkers명', Icons.schedule, Colors.orange[300]!),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
+              _buildSummaryItem('지각', '$lateWorkers명', Icons.access_time, Colors.orange[300]!),
+              const SizedBox(width: 12),
               _buildSummaryItem('결근', '$absentWorkers명', Icons.cancel, Colors.red[300]!),
             ],
           ),
@@ -639,9 +699,73 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
   }
 
   Widget _buildAttendanceTab() {
-    final filteredAttendances = _selectedStatus == 'ALL'
-        ? _attendances
-        : _attendances.where((a) => a.status == _selectedStatus).toList();
+    List<WorkerAttendance> filteredAttendances;
+    
+    print('=== 출근 관리 탭 필터링 ===');
+    print('선택된 날짜: $_selectedDate');
+    print('선택된 상태: $_selectedStatus');
+    print('전체 출석 기록 수: ${_attendances.length}');
+    print('출석 기록 직원들: ${_attendances.map((a) => a.staffName).toList()}');
+    
+    switch (_selectedStatus) {
+      case 'ALL':
+        filteredAttendances = _attendances;
+        break;
+      case 'SCHEDULED':
+        // 예정 상태: 오늘 스케줄이 있지만 아직 출근하지 않은 직원들
+        final todaySchedules = _schedules.where((s) {
+          final scheduleDate = _formatDate(s.startTime);
+          return scheduleDate == _selectedDate;
+        }).toList();
+        
+        final scheduledWorkerNames = todaySchedules.map((s) => s.staffName).toSet();
+        final presentWorkerNames = _attendances
+            .where((a) => a.status == 'PRESENT' || a.status == 'LATE')
+            .map((a) => a.staffName)
+            .toSet();
+        
+        // 스케줄이 있지만 아직 출근하지 않은 직원들
+        final scheduledButNotPresentNames = scheduledWorkerNames.difference(presentWorkerNames);
+        
+        // 해당 직원들의 스케줄 정보를 기반으로 가상의 출석 기록 생성
+        final virtualAttendances = todaySchedules
+            .where((s) => scheduledButNotPresentNames.contains(s.staffName))
+            .map((schedule) => WorkerAttendance(
+                  staffId: schedule.staffId,
+                  staffName: schedule.staffName,
+                  workLocation: schedule.workLocation,
+                  status: 'SCHEDULED',
+                  checkInTime: null,
+                  checkOutTime: null,
+                  totalWorkHours: 0.0,
+                ))
+            .toList();
+        
+        filteredAttendances = virtualAttendances;
+        
+        // 중복 제거 (같은 직원의 여러 스케줄이 있을 경우) - 이름 기준으로 제거
+        final seenNames = <String>{};
+        filteredAttendances = filteredAttendances.where((attendance) {
+          if (attendance.staffName.isEmpty) return false; // 이름이 비어있으면 제외
+          if (seenNames.contains(attendance.staffName)) {
+            return false;
+          }
+          seenNames.add(attendance.staffName);
+          return true;
+        }).toList();
+        break;
+      default:
+        // ALL이 아닌 경우 해당 상태의 출석 기록만 필터링
+        if (_selectedStatus != 'ALL') {
+          filteredAttendances = _attendances.where((a) => a.status == _selectedStatus).toList();
+        } else {
+          filteredAttendances = _attendances;
+        }
+        break;
+    }
+
+    print('필터링된 출석 기록 수: ${filteredAttendances.length}');
+    print('필터링된 출석 기록 직원들: ${filteredAttendances.map((a) => a.staffName).toList()}');
 
     if (filteredAttendances.isEmpty) {
       return _buildEmptyState('출근 기록');
@@ -661,12 +785,91 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
   }
 
   Widget _buildScheduleTab() {
+    List<WorkSchedule> filteredSchedules;
+    
+    // 기본적으로 오늘 날짜의 스케줄만 필터링
     final todaySchedules = _schedules.where((s) {
       final scheduleDate = _formatDate(s.startTime);
       return scheduleDate == _selectedDate;
     }).toList();
 
-    if (todaySchedules.isEmpty) {
+    print('=== 스케줄 관리 탭 필터링 ===');
+    print('선택된 날짜: $_selectedDate');
+    print('선택된 상태: $_selectedStatus');
+    print('전체 스케줄 수: ${_schedules.length}');
+    print('오늘 스케줄 수: ${todaySchedules.length}');
+    print('오늘 스케줄 직원들: ${todaySchedules.map((s) => s.staffName).toList()}');
+    print('출석 기록 직원들: ${_attendances.map((a) => a.staffName).toList()}');
+
+    switch (_selectedStatus) {
+      case 'ALL':
+        filteredSchedules = todaySchedules;
+        break;
+      case 'SCHEDULED':
+        // 예정 상태: 아직 출근하지 않은 직원들의 스케줄
+        final presentWorkerNames = _attendances
+            .where((a) => a.status == 'PRESENT' || a.status == 'LATE')
+            .map((a) => a.staffName)
+            .toSet();
+        
+        filteredSchedules = todaySchedules
+            .where((s) => !presentWorkerNames.contains(s.staffName))
+            .toList();
+        break;
+      case 'PRESENT':
+      case 'LATE':
+        // 출근/지각한 직원들의 스케줄
+        final presentWorkerNames = _attendances
+            .where((a) => a.status == _selectedStatus)
+            .map((a) => a.staffName)
+            .toSet();
+        
+        filteredSchedules = todaySchedules
+            .where((s) => presentWorkerNames.contains(s.staffName))
+            .toList();
+        break;
+      case 'ABSENT':
+        // 결근한 직원들의 스케줄 (스케줄이 있지만 출근하지 않은 경우)
+        final presentWorkerNames = _attendances
+            .where((a) => a.status == 'PRESENT' || a.status == 'LATE')
+            .map((a) => a.staffName)
+            .toSet();
+        
+        final scheduledWorkerNames = todaySchedules.map((s) => s.staffName).toSet();
+        final absentWorkerNames = scheduledWorkerNames.difference(presentWorkerNames);
+        
+        filteredSchedules = todaySchedules
+            .where((s) => absentWorkerNames.contains(s.staffName))
+            .toList();
+        break;
+      default:
+        // ALL이 아닌 경우 해당 상태의 스케줄만 필터링
+        if (_selectedStatus != 'ALL') {
+          filteredSchedules = todaySchedules.where((s) => s.status == _selectedStatus).toList();
+        } else {
+          filteredSchedules = todaySchedules;
+        }
+        break;
+    }
+
+    print('필터링된 스케줄 수: ${filteredSchedules.length}');
+    print('필터링된 스케줄 직원들: ${filteredSchedules.map((s) => s.staffName).toList()}');
+
+    // 중복 제거 (같은 직원의 여러 스케줄이 있을 경우) - 이름 기준으로 제거
+    final seenNames = <String>{};
+    filteredSchedules = filteredSchedules.where((schedule) {
+      if (schedule.staffName.isEmpty) return false; // 이름이 비어있으면 제외
+      if (seenNames.contains(schedule.staffName)) {
+        return false;
+      }
+      seenNames.add(schedule.staffName);
+      return true;
+    }).toList();
+
+    print('중복 제거 후 스케줄 수: ${filteredSchedules.length}');
+    print('중복 제거 후 스케줄 직원들: ${filteredSchedules.map((s) => s.staffName).toList()}');
+
+    if (filteredSchedules.isEmpty) {
       return _buildEmptyState('스케줄');
     }
 
@@ -675,15 +878,18 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
       onRefresh: _loadData,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: todaySchedules.length,
+        itemCount: filteredSchedules.length,
         itemBuilder: (context, index) {
-          return _buildScheduleCard(todaySchedules[index]);
+          return _buildScheduleCard(filteredSchedules[index]);
         },
       ),
     );
   }
 
   Widget _buildAttendanceCard(WorkerAttendance attendance) {
+    // 디버깅: 현재 출석 상태 출력
+    print('출석 카드 빌드 - 직원: ${attendance.staffName}, 상태: ${attendance.status}');
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Card(
@@ -751,6 +957,17 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
                     _buildTimeInfo('근무시간', attendance.workHoursText, Icons.schedule),
                   ],
                 ),
+                // 근무자 기본 정보 표시 (출근 관리에서는 간단하게)
+                if (attendance.notes != null && attendance.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    attendance.notes!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -767,20 +984,72 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
                       ),
                     ),
                     const SizedBox(width: 8),
-                    if (attendance.status != 'PRESENT') ...[
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _updateAttendanceStatus(attendance, 'PRESENT'),
-                          icon: const Icon(Icons.check, size: 16),
-                          label: const Text('출근처리'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          ),
-                        ),
-                      ),
-                    ],
+                    Builder(
+                      builder: (context) {
+                        // 디버깅: 버튼 표시 로직 확인
+                        print('버튼 표시 로직 - 직원: ${attendance.staffName}, 상태: ${attendance.status}');
+                        
+                        if (attendance.status == 'SCHEDULED' || attendance.status == 'ABSENT') {
+                          print('출근처리 버튼 표시');
+                          return Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _updateAttendanceStatus(attendance, 'PRESENT'),
+                              icon: const Icon(Icons.check, size: 16),
+                              label: const Text('출근처리'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4CAF50),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              ),
+                            ),
+                          );
+                        } else if (attendance.status == 'PRESENT' || attendance.status == 'LATE') {
+                          print('퇴근처리 버튼 표시');
+                          return Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _updateAttendanceStatus(attendance, 'COMPLETED'),
+                              icon: const Icon(Icons.logout, size: 16),
+                              label: const Text('퇴근처리'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF757575),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              ),
+                            ),
+                          );
+                        } else if (attendance.status == 'COMPLETED') {
+                          print('근무 완료 표시');
+                          return Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.grey[300]!),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.check_circle, size: 16, color: Colors.grey),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    '근무 완료',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        } else {
+                          print('알 수 없는 상태: ${attendance.status}');
+                          return const SizedBox.shrink();
+                        }
+                      },
+                    ),
                   ],
                 ),
               ],
@@ -857,11 +1126,20 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildScheduleInfo('시간', schedule.timeRangeText, Icons.access_time),
+                    _buildTimeInfo('시작', _formatTime(schedule.startTime), Icons.access_time),
                     const SizedBox(width: 16),
+                    _buildTimeInfo('종료', _formatTime(schedule.endTime), Icons.access_time_filled),
+                    const SizedBox(width: 16),
+                    _buildTimeInfo('근무시간', schedule.durationText, Icons.schedule),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+                Row(
+                  children: [
                     _buildScheduleInfo('시급', '₩${schedule.hourlyRate.toInt()}', Icons.attach_money),
                     const SizedBox(width: 16),
-                    _buildScheduleInfo('예상급여', '₩${schedule.estimatedPay.toInt()}', Icons.payment),
+                    _buildScheduleInfo('근무지', schedule.workLocation, Icons.location_on),
                   ],
                 ),
                 if (schedule.notes != null) ...[
@@ -1107,19 +1385,58 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
     try {
       HapticFeedback.lightImpact();
 
+      print('=== 출근 상태 변경 시작 ===');
+      print('직원: ${attendance.staffName}');
+      print('현재 상태: ${attendance.status}');
+      print('새로운 상태: $newStatus');
+
       final result = await WorkerAttendanceService.updateStaffStatus(
         attendance.staffId,
         newStatus,
       );
 
       if (result['success']) {
+        print('서버 응답 성공: ${result['data']}');
+        
+        // 로컬 상태 Map에 저장
+        _localStatusMap[attendance.staffId] = newStatus;
+        print('로컬 상태 저장: ${attendance.staffId} -> $newStatus');
+        
         _showSuccessMessage('${attendance.staffName}님의 상태가 변경되었습니다');
-        _loadData();
+        
+        // 즉시 로컬 상태 업데이트
+        setState(() {
+          final index = _attendances.indexWhere((a) => a.staffId == attendance.staffId);
+          if (index != -1) {
+            _attendances[index] = attendance.copyWith(status: newStatus);
+            print('출석 기록 상태 업데이트: ${_attendances[index].status}');
+          }
+        });
+        
+        // UI 강제 업데이트를 위해 여러 번 setState 호출
+        if (mounted) {
+          setState(() {});
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              setState(() {});
+            }
+          });
+        }
+        
+        // 잠시 후 서버에서 최신 데이터 다시 로드 (UI 업데이트 완료 후)
+        Future.delayed(const Duration(milliseconds: 2000), () {
+          if (mounted) {
+            print('서버 데이터 재로드 시작');
+            _loadData();
+          }
+        });
       } else {
+        print('서버 응답 실패: ${result['error']}');
         _showErrorMessage(result['error'] ?? '상태 변경에 실패했습니다');
       }
     } catch (e) {
-      _showErrorMessage('상태 변경 중 오류가 발생했습니다: $e');
+      print('출근 상태 변경 오류: $e');
+      _showErrorMessage('상태 변경 중 오류가 발생했습니다');
     }
   }
 
@@ -1146,6 +1463,12 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
   // === 유틸리티 메서드들 ===
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  // LocalTime을 DateTime으로 변환 (오늘 날짜 기준)
+  DateTime _localTimeToDateTime(DateTime localTime) {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, localTime.hour, localTime.minute);
   }
 
   void _showSuccessMessage(String message) {
@@ -1180,6 +1503,17 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen>
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _navigateToHiredWorkers() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HiredWorkersScreen(
+          hiredWorkers: _hiredWorkers,
+        ),
       ),
     );
   }

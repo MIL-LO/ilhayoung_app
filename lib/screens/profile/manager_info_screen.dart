@@ -267,6 +267,12 @@ class _ManagerInfoScreenState extends State<ManagerInfoScreen>
           // 기본 정보 (읽기 전용)
           if (_originalData != null) ...[
             _buildReadOnlyField(
+              '사업장명',
+              _originalData!['companyName'] ?? '정보 없음',
+              Icons.store,
+            ),
+            const SizedBox(height: 16),
+            _buildReadOnlyField(
               '사업자명',
               _originalData!['name'] ?? '정보 없음',
               Icons.person,

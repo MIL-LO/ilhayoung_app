@@ -47,8 +47,8 @@ class _JejuUserTypeSelectorState extends State<JejuUserTypeSelector> {
             const SizedBox(width: 16),
             Expanded(
               child: _buildUserTypeCard(
-                userType: UserType.employer,
-                title: UserType.employer.displayName,
+                userType: UserType.manager,
+                title: UserType.manager.displayName,
                 subtitle: '직원을 구하고 있어요',
                 icon: '🏢',
                 color: const Color(0xFF2D3748),

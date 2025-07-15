@@ -2,14 +2,14 @@
 
 class AppConfig {
   // 개발/운영 환경 설정
-  static const bool isDevelopment = false; // true: 로컬, false: 운영
+  static const bool isDevelopment = true; // true: 로컬, false: 운영
 
   // 서버 URL 설정
   static String get baseUrl {
     if (isDevelopment) {
       return 'http://localhost:5000'; // 로컬 개발 서버
     } else {
-      return 'https://api.ilhayoung.com'; // 🔥 변경된 운영 서버
+      return 'https://api.ilhayoung.com'; //  운영 서버
     }
   }
 

@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/services.dart';
 import '../models/jeju_job_item.dart';
 
 class MockDataService {

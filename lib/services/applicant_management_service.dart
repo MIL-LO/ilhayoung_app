@@ -4,9 +4,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 
 class ApplicantManagementService {
-  static const String baseUrl = 'https://api.ilhayoung.com/api/v1';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   /// 특정 채용공고의 지원자 목록 조회
   static Future<Map<String, dynamic>> getJobApplicants(String recruitId) async {
@@ -189,6 +190,31 @@ class ApplicantManagementService {
         final jsonResponse = json.decode(response.body);
 
         if (jsonResponse['code'] == 'SUCCESS') {
+          // HIRED 상태로 변경된 경우 스케줄 생성 API 호출
+          if (newStatus == 'HIRED') {
+            print('=== 지원자 승인으로 인한 스케줄 생성 시작 ===');
+            final scheduleResult = await _createSchedulesFromApplication(applicationId, accessToken);
+            
+            if (scheduleResult['success']) {
+              print('✅ 스케줄 생성 성공');
+              return {
+                'success': true,
+                'message': '지원자가 승인되었고 스케줄이 생성되었습니다',
+                'data': jsonResponse['data'],
+                'scheduleCreated': true,
+              };
+            } else {
+              print('⚠️ 스케줄 생성 실패: ${scheduleResult['error']}');
+              return {
+                'success': true,
+                'message': '지원자가 승인되었으나 스케줄 생성에 실패했습니다',
+                'data': jsonResponse['data'],
+                'scheduleCreated': false,
+                'scheduleError': scheduleResult['error'],
+              };
+            }
+          }
+          
           return {
             'success': true,
             'message': jsonResponse['message'] ?? '상태가 변경되었습니다',
@@ -211,6 +237,59 @@ class ApplicantManagementService {
       return {
         'success': false,
         'error': '네트워크 오류가 발생했습니다: $e',
+      };
+    }
+  }
+
+  /// 지원서 승인 시 스케줄 자동 생성 (POST /api/v1/schedules/applications/{applicationId})
+  static Future<Map<String, dynamic>> _createSchedulesFromApplication(
+      String applicationId,
+      String accessToken) async {
+    try {
+      print('=== 스케줄 생성 API 호출 ===');
+      print('지원서 ID: $applicationId');
+
+      final uri = Uri.parse('$baseUrl/schedules/applications/$applicationId');
+      print('API URL: $uri');
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      print('스케줄 생성 응답 상태 코드: ${response.statusCode}');
+      print('스케줄 생성 응답 본문: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+
+        if (jsonResponse['code'] == 'SUCCESS') {
+          return {
+            'success': true,
+            'message': jsonResponse['message'] ?? '스케줄이 생성되었습니다',
+            'data': jsonResponse['data'],
+          };
+        } else {
+          return {
+            'success': false,
+            'error': jsonResponse['message'] ?? '스케줄 생성에 실패했습니다',
+          };
+        }
+      } else {
+        return {
+          'success': false,
+          'error': '스케줄 생성 서버 오류 (${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('❌ 스케줄 생성 예외: $e');
+      return {
+        'success': false,
+        'error': '스케줄 생성 네트워크 오류: $e',
       };
     }
   }
@@ -431,17 +510,14 @@ class JobApplicant {
   });
 
   factory JobApplicant.fromJson(Map<String, dynamic> json) {
-    String status = json['status']?.toString() ?? 'PENDING';
+    String status = json['status']?.toString() ?? 'APPLIED';
 
-    // API에서 오는 상태값을 UI에서 사용하는 값으로 매핑
+    // API에서 오는 상태값을 그대로 사용 (백엔드와 일치)
     switch (status.toUpperCase()) {
-      case 'APPLIED':
-        status = 'PENDING';
-        break;
       case 'APPROVED':
         status = 'HIRED';
         break;
-    // 나머지는 그대로 사용
+      // 나머지는 그대로 사용
     }
 
     return JobApplicant(
@@ -486,11 +562,9 @@ class JobApplicant {
 
   String get statusText {
     switch (status) {
-      case 'PENDING': return '검토 대기';
-      case 'REVIEWING': return '검토 중';
+      case 'APPLIED': return '대기중';
       case 'INTERVIEW': return '면접 요청';
-      case 'APPROVED': return '승인';
-      case 'HIRED': return '승인';
+      case 'HIRED': return '채용 확정';
       case 'REJECTED': return '거절';
       default: return status;
     }
@@ -498,10 +572,8 @@ class JobApplicant {
 
   Color get statusColor {
     switch (status) {
-      case 'PENDING': return const Color(0xFFFF9800);
-      case 'REVIEWING': return const Color(0xFF2196F3);
+      case 'APPLIED': return const Color(0xFF2196F3);
       case 'INTERVIEW': return const Color(0xFF9C27B0);
-      case 'APPROVED': return const Color(0xFF4CAF50);
       case 'HIRED': return const Color(0xFF4CAF50);
       case 'REJECTED': return const Color(0xFFF44336);
       default: return const Color(0xFF757575);
