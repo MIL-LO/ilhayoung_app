@@ -85,23 +85,20 @@ class _JejuCarouselSliderState extends State<JejuCarouselSlider> {
     ),
   };
 
-  // 실제 공고가 있는 카테고리만 필터링
+  // _availableCategories getter 전체를 아래로 교체
   List<CategoryIconData> get _availableCategories {
-    if (widget.categoryCounts == null || widget.categoryCounts!.isEmpty) {
-      return [];
-    }
-    
     final List<CategoryIconData> categories = [];
-    
-    for (final entry in widget.categoryCounts!.entries) {
-      final jobType = entry.key;
-      final count = entry.value;
-      
-      if (count > 0 && _categoryIcons.containsKey(jobType)) {
-        categories.add(_categoryIcons[jobType]!);
+    for (final category in unifiedJobCategories) {
+      final count = widget.categoryCounts?[category] ?? 0;
+      if (count > 0) {
+        categories.add(CategoryIconData(
+          category: category,
+          emoji: unifiedCategoryEmojis[category] ?? '📋',
+          label: category,
+          description: category,
+        ));
       }
     }
-    
     return categories;
   }
 
@@ -345,3 +342,26 @@ class CategoryIconData {
     required this.description,
   });
 }
+
+const List<String> unifiedJobCategories = [
+  '카페/음료',
+  '음식점',
+  '숙박업',
+  '관광/레저',
+  '농업',
+  '유통/판매',
+  '서비스업',
+  'IT/개발',
+  '기타',
+];
+const Map<String, String> unifiedCategoryEmojis = {
+  '카페/음료': '☕',
+  '음식점': '🍽️',
+  '숙박업': '🏨',
+  '관광/레저': '🏖️',
+  '농업': '🌾',
+  '유통/판매': '🛍️',
+  '서비스업': '💼',
+  'IT/개발': '💻',
+  '기타': '📋',
+};

@@ -6,6 +6,18 @@ import '../../../models/job_posting_model.dart';
 import '../../../services/applicant_management_service.dart';
 import '../../../services/job_api_service.dart';
 
+const List<String> unifiedJobCategories = [
+  '카페/음료',
+  '음식점',
+  '숙박업',
+  '관광/레저',
+  '농업',
+  '유통/판매',
+  '서비스업',
+  'IT/개발',
+  '기타',
+];
+
 class JobEditScreen extends StatefulWidget {
   final JobPosting jobPosting;
 
@@ -83,7 +95,9 @@ class _JobEditScreenState extends State<JobEditScreen> {
     _selectedWorkEndDate = widget.jobPosting.workEndDate ?? DateTime.now().add(const Duration(days: 90));
     _selectedWorkPeriod = widget.jobPosting.workSchedule.workPeriod;
     _selectedDeadline = widget.jobPosting.deadline;
-    _selectedJobType = widget.jobPosting.jobType ?? '카페/음료';
+    // 직무 분야 설정 - 목록에 없는 값이면 기본값으로 설정
+    final jobType = widget.jobPosting.jobType;
+    _selectedJobType = unifiedJobCategories.contains(jobType) ? jobType! : '카페/음료';
     
     print('=== 컨트롤러 값 설정 완료 ===');
     print('제목: ${_titleController.text}');
@@ -273,7 +287,7 @@ class _JobEditScreenState extends State<JobEditScreen> {
         _buildDropdown(
           label: '직무 분야',
           value: _selectedJobType,
-          items: const ['카페/음료', '음식점', '숙박업', '관광/레저', '농업', '유통/판매', '서비스업', '기타'],
+          items: unifiedJobCategories,
           onChanged: (value) => setState(() => _selectedJobType = value!),
         ),
         const SizedBox(height: 16),
@@ -659,6 +673,12 @@ class _JobEditScreenState extends State<JobEditScreen> {
     List<String>? itemLabels,
     required void Function(String?) onChanged,
   }) {
+    // 중복된 값 제거
+    final uniqueItems = items.toSet().toList();
+    
+    // 현재 값이 목록에 없으면 null로 설정 (드롭다운에서 선택되지 않은 상태)
+    final validValue = uniqueItems.contains(value) ? value : null;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -678,12 +698,12 @@ class _JobEditScreenState extends State<JobEditScreen> {
             border: Border.all(color: Colors.grey[300]!),
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            value: validValue,
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
-            items: items.asMap().entries.map((entry) {
+            items: uniqueItems.asMap().entries.map((entry) {
               final index = entry.key;
               final item = entry.value;
               final displayText = itemLabels != null && index < itemLabels.length 

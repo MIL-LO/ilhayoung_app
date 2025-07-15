@@ -13,6 +13,30 @@ import '../../components/login/user_type_selector.dart';
 import '../../components/login/google_login_button.dart';
 import '../../components/login/jeju_message_card.dart';
 
+// 파일 상단에 추가
+const List<String> unifiedJobCategories = [
+  '카페/음료',
+  '음식점',
+  '숙박업',
+  '관광/레저',
+  '농업',
+  '유통/판매',
+  '서비스업',
+  'IT/개발',
+  '기타',
+];
+const Map<String, String> unifiedCategoryEmojis = {
+  '카페/음료': '☕',
+  '음식점': '🍽️',
+  '숙박업': '🏨',
+  '관광/레저': '🏖️',
+  '농업': '🌾',
+  '유통/판매': '🛍️',
+  '서비스업': '💼',
+  'IT/개발': '💻',
+  '기타': '📋',
+};
+
 class JejuLoginScreen extends ConsumerStatefulWidget {
   final Function(UserType) onLoginSuccess;
 
@@ -51,28 +75,15 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
         print('📊 전체 공고 수: ${recruits.length}');
         
         // 🔧 제목 기반으로 카테고리 분류 (jobType 필드가 없으므로)
-        final Map<String, int> counts = {};
-        
+        final Map<String, int> counts = { for (var c in unifiedJobCategories) c: 0 };
         for (final recruit in recruits) {
-          final title = recruit['title']?.toString() ?? '';
-          final companyName = recruit['companyName']?.toString() ?? '';
-          final workLocation = recruit['workLocation']?.toString() ?? '';
-          
-          print('🔍 공고 분석: $title (${companyName})');
-          
-          // 제목과 회사명을 기반으로 카테고리 분류
-          String category = _classifyCategory(title, companyName, workLocation);
-          
-          if (category.isNotEmpty) {
+          final category = _classifyCategory(recruit);
+          if (unifiedJobCategories.contains(category)) {
             counts[category] = (counts[category] ?? 0) + 1;
-            print('✅ 분류 결과: $category');
           }
         }
-
         // 전체 공고 수 추가
-        if (recruits.isNotEmpty) {
-          counts['전체'] = recruits.length;
-        }
+        counts['전체'] = recruits.length;
         
         setState(() {
           _categoryCounts = counts;
@@ -97,26 +108,21 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
   }
 
   /// 제목과 회사명을 기반으로 카테고리 분류
-  String _classifyCategory(String title, String companyName, String workLocation) {
-    final text = '${title.toLowerCase()} ${companyName.toLowerCase()} ${workLocation.toLowerCase()}';
-    
-    if (text.contains('카페') || text.contains('커피') || text.contains('음료')) {
-      return '카페/음료';
-    } else if (text.contains('음식') || text.contains('요리') || text.contains('식당') || text.contains('레스토랑')) {
-      return '음식점/요리';
-    } else if (text.contains('매장') || text.contains('판매') || text.contains('상점') || text.contains('스토어')) {
-      return '매장/판매';
-    } else if (text.contains('호텔') || text.contains('펜션') || text.contains('숙박') || text.contains('리조트')) {
-      return '호텔/펜션';
-    } else if (text.contains('관광') || text.contains('레저') || text.contains('여행') || text.contains('투어')) {
-      return '관광/레저';
-    } else if (text.contains('농업') || text.contains('축산') || text.contains('농장') || text.contains('목장')) {
-      return '농업/축산';
-    } else if (text.contains('건설') || text.contains('공사') || text.contains('시공') || text.contains('공장')) {
-      return '건설/공사';
-    } else {
-      return '기타 서비스';
+  String _classifyCategory(Map<String, dynamic> recruit) {
+    final jobType = recruit['jobType']?.toString();
+    if (jobType != null && unifiedJobCategories.contains(jobType)) {
+      return jobType;
     }
+    final text = '${recruit['title'] ?? ''} ${recruit['companyName'] ?? ''} ${recruit['workLocation'] ?? ''}'.toLowerCase();
+    if (text.contains('카페') || text.contains('커피') || text.contains('음료')) return '카페/음료';
+    if (text.contains('음식') || text.contains('요리') || text.contains('식당') || text.contains('레스토랑')) return '음식점';
+    if (text.contains('숙박') || text.contains('호텔') || text.contains('펜션') || text.contains('리조트')) return '숙박업';
+    if (text.contains('관광') || text.contains('레저') || text.contains('여행') || text.contains('투어')) return '관광/레저';
+    if (text.contains('농업') || text.contains('농장') || text.contains('축산') || text.contains('목장')) return '농업';
+    if (text.contains('유통') || text.contains('판매') || text.contains('매장') || text.contains('상점')) return '유통/판매';
+    if (text.contains('서비스')) return '서비스업';
+    if (text.contains('it') || text.contains('개발') || text.contains('프로그래머')) return 'IT/개발';
+    return '기타';
   }
 
   @override

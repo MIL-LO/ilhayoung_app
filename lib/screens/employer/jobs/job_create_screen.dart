@@ -9,6 +9,18 @@ import '../../../services/manager_info_service.dart';
 import '../../../models/job_posting_model.dart';
 import '../../../providers/categories_provider.dart';
 
+const List<String> unifiedJobCategories = [
+  '카페/음료',
+  '음식점',
+  '숙박업',
+  '관광/레저',
+  '농업',
+  '유통/판매',
+  '서비스업',
+  'IT/개발',
+  '기타',
+];
+
 class JobCreateScreen extends ConsumerStatefulWidget {
   const JobCreateScreen({Key? key}) : super(key: key);
 
@@ -218,7 +230,6 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen>
   }
 
   Widget _buildBasicInfoSection() {
-    final categories = ref.watch(categoriesProvider);
     
     return _buildFormSection(
       title: '기본 정보',
@@ -242,7 +253,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen>
         _buildDropdown(
           label: '직무 분야',
           value: _selectedJobType,
-          items: categories.where((category) => category != '전체').toList(),
+          items: unifiedJobCategories,
           onChanged: (value) => setState(() => _selectedJobType = value!),
         ),
         const SizedBox(height: 16),
