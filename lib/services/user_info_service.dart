@@ -68,12 +68,12 @@ class UserInfoService {
       } else {
         print('❌ 특정 사용자 정보 조회 실패: ${response.statusCode}');
 
-        String errorMessage;
         try {
           final errorData = jsonDecode(response.body);
-          errorMessage = errorData['message'] ?? '사용자 정보를 불러올 수 없습니다';
+          final errorMessage = errorData['message'] ?? '사용자 정보를 불러올 수 없습니다';
+          print('❌ 사용자 정보 조회 실패: $errorMessage');
         } catch (e) {
-          errorMessage = '사용자 정보 조회에 실패했습니다 (${response.statusCode})';
+          print('❌ 사용자 정보 조회에 실패했습니다 (${response.statusCode})');
         }
 
         return null;

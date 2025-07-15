@@ -31,4 +31,6 @@ class AppConfig {
 
   // 디버그 모드 설정
   static bool get isDebugMode => isDevelopment;
+
+  static String? accessToken;
 }

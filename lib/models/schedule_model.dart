@@ -290,7 +290,7 @@ class LocalTime {
     this.nano = 0,
   });
 
-  factory LocalTime.fromJson(Map<String, dynamic> json) {
+  factory LocalTime.fromJson(dynamic json) {
     // JSON이 문자열인 경우 (백엔드에서 LocalTime이 문자열로 직렬화된 경우)
     if (json is String) {
       return _parseTimeString(json);

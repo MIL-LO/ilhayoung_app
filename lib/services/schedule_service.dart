@@ -4,7 +4,7 @@ import '../config/app_config.dart';
 import '../models/schedule_model.dart';
 
 class ScheduleService {
-  static const String baseUrl = AppConfig.apiBaseUrl;
+  static final String baseUrl = AppConfig.apiBaseUrl;
 
   // 월별 스케줄 조회 (달력용)
   static Future<Map<String, dynamic>> getMonthlySchedules(int year, int month) async {

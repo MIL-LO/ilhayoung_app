@@ -1,7 +1,8 @@
 // lib/components/worker_management/worker_card_components.dart
 
 import 'package:flutter/material.dart';
-import '../../models/worker_attendance_model.dart';
+import '../../models/work_schedule.dart';
+import '../../models/worker_attendance_model.dart' hide WorkSchedule;
 
 class AttendanceCard extends StatelessWidget {
   final WorkerAttendance attendance;
@@ -228,12 +229,12 @@ class ScheduleCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                schedule.staffName,
+                schedule.company,
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 2),
               Text(
-                schedule.workLocation,
+                schedule.location ?? '위치 정보 없음',
                 style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
             ],

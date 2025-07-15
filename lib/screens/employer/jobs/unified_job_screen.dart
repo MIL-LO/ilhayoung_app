@@ -857,11 +857,11 @@ class _UnifiedJobScreenState extends State<UnifiedJobScreen>
   }
 
   Future<void> _refreshMyJobs() async {
-    await _loadMyJobs();
+    _loadMyJobs();
   }
 
   void _navigateToCreateJob() async {
-    await Navigator.push(
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const JobManagementScreen(),

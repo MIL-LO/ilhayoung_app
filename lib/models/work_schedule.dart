@@ -313,15 +313,13 @@ class WorkSchedule {
       final workMinutes = endTotalMinutes - startTotalMinutes;
       return workMinutes / 60.0;
     } catch (e) {
-      return 8.0; // 기본값
+      return 0; // 기본값
     }
   }
 
   /// 일급 계산
   double? get dailyWage {
-    if (hourlyRate != null) {
-      return hourlyRate! * workHours;
-    }
-    return null;
+    if (hourlyRate == null) return null;
+    return hourlyRate! * workHours;
   }
 }
