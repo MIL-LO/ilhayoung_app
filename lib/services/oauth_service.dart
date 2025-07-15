@@ -224,7 +224,42 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
         print(pageText);
         print('=== 페이지 텍스트 끝 ===');
 
-        // 패턴 1: JSON 형태의 응답 찾기 (더 정확한 패턴으로 개선)
+        // 🎯 패턴 1: 전체 페이지에서 JSON 추출 시도 (우선순위 높임)
+        print('🎯 전체 페이지에서 JSON 추출 시도');
+        try {
+          // 페이지에서 JSON 부분만 추출
+          final jsonStart = pageText.indexOf('{');
+          final jsonEnd = pageText.lastIndexOf('}');
+          
+          if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+            final jsonStr = pageText.substring(jsonStart, jsonEnd + 1);
+            print('추출된 JSON 문자열: $jsonStr');
+            
+            // JSON 유효성 검사
+            if (jsonStr.contains('"success"') && jsonStr.contains('"accessToken"')) {
+              final responseData = json.decode(jsonStr);
+              print('전체 페이지 JSON 디코딩 성공: $responseData');
+              
+              // 백엔드 응답 형식에 맞춰 OAuthResponse 생성
+              final oauthResponse = OAuthResponse(
+                success: responseData['success'] ?? false,
+                message: responseData['message'] ?? '',
+                accessToken: responseData['accessToken'],
+                refreshToken: responseData['refreshToken'],
+              );
+              
+              print('전체 페이지에서 OAuthResponse 생성 성공!');
+              _handleOAuthResponse(oauthResponse);
+              return;
+            } else {
+              print('JSON에 필요한 필드가 없음: success=${jsonStr.contains('"success"')}, accessToken=${jsonStr.contains('"accessToken"')}');
+            }
+          }
+        } catch (e) {
+          print('전체 페이지 JSON 파싱 실패: $e');
+        }
+
+        // 패턴 2: JSON 형태의 응답 찾기 (정규식 패턴)
         final jsonPatterns = [
           // 완전한 JSON 객체 패턴 (백엔드 응답 형식에 맞춤)
           RegExp(r'\{[^{}]*"success"[^{}]*"message"[^{}]*"accessToken"[^{}]*"refreshToken"[^{}]*\}'),
@@ -236,6 +271,9 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
           RegExp(r'\{[\s\S]*?success[\s\S]*?accessToken[\s\S]*?\}'),
           // 가장 넓은 범위
           RegExp(r'\{[\s\S]*success[\s\S]*accessToken[\s\S]*\}'),
+          // 백엔드 응답 형식에 맞춘 새로운 패턴
+          RegExp(r'\{[^{}]*"success"[^{}]*"message"[^{}]*"accessToken"[^{}]*\}'),
+          RegExp(r'\{[^{}]*"success"[^{}]*"accessToken"[^{}]*\}'),
         ];
 
         for (final pattern in jsonPatterns) {
@@ -277,38 +315,42 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
           }
         }
 
-        // 패턴 2: 전체 페이지에서 JSON 추출 시도
-        print('정규식 패턴으로 찾지 못함 - 전체 페이지에서 JSON 추출 시도');
-        try {
-          // 페이지에서 JSON 부분만 추출
-          final jsonStart = pageText.indexOf('{');
-          final jsonEnd = pageText.lastIndexOf('}');
-          
-          if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
-            final jsonStr = pageText.substring(jsonStart, jsonEnd + 1);
-            print('추출된 JSON 문자열: $jsonStr');
-            
-            final responseData = json.decode(jsonStr);
-            print('전체 페이지 JSON 디코딩 성공: $responseData');
-            
-            // 백엔드 응답 형식에 맞춰 OAuthResponse 생성
-            final oauthResponse = OAuthResponse(
-              success: responseData['success'] ?? false,
-              message: responseData['message'] ?? '',
-              accessToken: responseData['accessToken'],
-              refreshToken: responseData['refreshToken'],
-            );
-            
-            print('전체 페이지에서 OAuthResponse 생성 성공!');
-            _handleOAuthResponse(oauthResponse);
-            return;
-          }
-        } catch (e) {
-          print('전체 페이지 JSON 파싱 실패: $e');
-        }
+
 
         // 🔥 토큰 패턴 추출 제거 - JSON 우선 처리
         print('JSON 패턴에서 토큰을 찾지 못함 - 성공 처리로 진행');
+        
+        // 🎯 백엔드 응답에서 직접 토큰 추출 시도
+        if (pageText.contains('"accessToken"')) {
+          print('🎯 백엔드 응답에서 직접 토큰 추출 시도');
+          try {
+            // JSON 부분만 추출
+            final jsonStart = pageText.indexOf('{');
+            final jsonEnd = pageText.lastIndexOf('}');
+            
+            if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+              final jsonStr = pageText.substring(jsonStart, jsonEnd + 1);
+              print('추출된 JSON: $jsonStr');
+              
+              final responseData = json.decode(jsonStr);
+              if (responseData['accessToken'] != null) {
+                final oauthResponse = OAuthResponse(
+                  success: responseData['success'] ?? false,
+                  message: responseData['message'] ?? '',
+                  accessToken: responseData['accessToken'],
+                  refreshToken: responseData['refreshToken'],
+                );
+                
+                print('✅ 백엔드 응답에서 토큰 추출 성공!');
+                _handleOAuthResponse(oauthResponse);
+                return;
+              }
+            }
+          } catch (e) {
+            print('❌ 백엔드 응답에서 토큰 추출 실패: $e');
+          }
+        }
+        
         _handleSuccessResponse();
         return;
       }
@@ -349,7 +391,8 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
   Future<void> _parseJWTAndSaveUserInfo(String accessToken) async {
     try {
       print('=== JWT 파싱 시작 ===');
-      print('AccessToken: ${accessToken.substring(0, 50)}...');
+      final displayLength = accessToken.length > 50 ? 50 : accessToken.length;
+      print('AccessToken: ${accessToken.substring(0, displayLength)}...');
 
       final parts = accessToken.split('.');
       if (parts.length != 3) {
@@ -458,6 +501,9 @@ class _OAuthWebViewScreenState extends State<_OAuthWebViewScreen> {
     if (response.success && response.accessToken != null && response.accessToken != 'temp_token') {
       try {
         print('=== OAuthResponse에서 토큰 처리 시작 ===');
+        print('토큰 길이: ${response.accessToken!.length}');
+        print('토큰 시작 부분: ${response.accessToken!.substring(0, response.accessToken!.length > 50 ? 50 : response.accessToken!.length)}...');
+        
         await _processOAuthToken(response.accessToken!);
         print('✅ OAuthResponse 토큰 처리 완료');
         

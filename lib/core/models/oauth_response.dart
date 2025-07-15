@@ -13,6 +13,10 @@ class OAuthResponse {
     this.refreshToken,
   });
 
+  // 편의 속성들
+  bool get hasAccessToken => accessToken != null && accessToken!.isNotEmpty;
+  bool get hasRefreshToken => refreshToken != null && refreshToken!.isNotEmpty;
+
   factory OAuthResponse.fromJson(Map<String, dynamic> json) {
     return OAuthResponse(
       success: json['success'] ?? false,
@@ -33,6 +37,6 @@ class OAuthResponse {
 
   @override
   String toString() {
-    return 'OAuthResponse(success: $success, message: $message, hasAccessToken: ${accessToken != null}, hasRefreshToken: ${refreshToken != null})';
+    return 'OAuthResponse(success: $success, message: $message, hasAccessToken: $hasAccessToken, hasRefreshToken: $hasRefreshToken)';
   }
 }

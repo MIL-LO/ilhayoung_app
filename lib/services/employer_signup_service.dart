@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../services/auth_service.dart';
 
@@ -91,6 +92,18 @@ class EmployerSignupService {
         // 성공 응답
           if (responseData['code'] == 'SUCCESS' || responseData['success'] == true) {
             print('✅ 사업자 회원가입 성공');
+            
+            // 🎯 회원가입 성공 시 새로운 토큰 저장
+            final data = responseData['data'];
+            if (data != null && data['accessToken'] != null) {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('access_token', data['accessToken']);
+              if (data['refreshToken'] != null) {
+                await prefs.setString('refresh_token', data['refreshToken']);
+              }
+              print('✅ 회원가입 완료 후 새로운 토큰 저장됨');
+            }
+            
             return {
               'success': true,
               'message': responseData['message'] ?? '사업자 회원가입이 완료되었습니다! 🎉',

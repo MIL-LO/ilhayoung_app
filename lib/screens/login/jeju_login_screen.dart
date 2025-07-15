@@ -403,7 +403,9 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
 
       if (accessToken != null && accessToken.isNotEmpty) {
         await prefs.setString('access_token', accessToken);
-        print('✅ 액세스 토큰 저장 완료: ${accessToken.substring(0, 20)}...');
+        // 토큰 길이에 따라 안전하게 출력
+        final displayLength = accessToken.length > 20 ? 20 : accessToken.length;
+        print('✅ 액세스 토큰 저장 완료: ${accessToken.substring(0, displayLength)}...');
       } else {
         print('❌ OAuth 결과에서 토큰을 찾을 수 없음');
         return; // 토큰이 없으면 저장 중단
@@ -450,7 +452,12 @@ class _JejuLoginScreenState extends ConsumerState<JejuLoginScreen> {
       final savedStatus = prefs.getString('user_status');
 
       print('=== 저장 확인 ===');
-      print('저장된 토큰: ${savedToken != null ? "${savedToken.substring(0, 20)}..." : "없음"}');
+      if (savedToken != null && savedToken.isNotEmpty) {
+        final displayLength = savedToken.length > 20 ? 20 : savedToken.length;
+        print('저장된 토큰: ${savedToken.substring(0, displayLength)}...');
+      } else {
+        print('저장된 토큰: 없음');
+      }
       print('저장된 타입: $savedType');
       print('저장된 이메일: $savedEmail');
       print('저장된 상태: $savedStatus');

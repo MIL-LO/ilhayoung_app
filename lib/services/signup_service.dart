@@ -2,6 +2,7 @@
 
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_constants.dart';
 import 'auth_service.dart';
 
@@ -43,6 +44,17 @@ class SignupService {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
 
         if (jsonResponse['code'] == 'SUCCESS') {
+          // 🎯 회원가입 성공 시 새로운 토큰 저장
+          final data = jsonResponse['data'];
+          if (data != null && data['accessToken'] != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('access_token', data['accessToken']);
+            if (data['refreshToken'] != null) {
+              await prefs.setString('refresh_token', data['refreshToken']);
+            }
+            print('✅ 회원가입 완료 후 새로운 토큰 저장됨');
+          }
+          
           return {
             'success': true,
             'message': jsonResponse['message'] ?? '구직자 회원가입이 완료되었습니다.',
@@ -108,6 +120,17 @@ class SignupService {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
 
         if (jsonResponse['code'] == 'SUCCESS') {
+          // 🎯 회원가입 성공 시 새로운 토큰 저장
+          final data = jsonResponse['data'];
+          if (data != null && data['accessToken'] != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('access_token', data['accessToken']);
+            if (data['refreshToken'] != null) {
+              await prefs.setString('refresh_token', data['refreshToken']);
+            }
+            print('✅ 회원가입 완료 후 새로운 토큰 저장됨');
+          }
+          
           return {
             'success': true,
             'message': jsonResponse['message'] ?? '사업자 회원가입이 완료되었습니다.',

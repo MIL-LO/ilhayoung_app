@@ -2,7 +2,7 @@
 
 class AppConfig {
   // 개발/운영 환경 설정
-  static const bool isDevelopment = false; // true: 로컬, false: 운영
+  static const bool isDevelopment = true; // true: 로컬, false: 운영
 
   // 서버 URL 설정
   static String get baseUrl {
